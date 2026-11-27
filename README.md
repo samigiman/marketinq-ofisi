@@ -1,7 +1,7 @@
 # ✦ Marketinq HQ: canlı agentlərin yaşadığı 3D ofis
 
-> **Ulduz Marketinq, 9-cu mərtəbə.** Burada 24 nəfər işləyir. Siz onları yuxarıdan izləyirsiniz, yaxınlaşıb danışırsınız, tapşırıq verirsiniz.
-> Onlar isə özlərini bot yox, bu ofisdə yaşayan insanlar kimi bilirlər.
+> **Ulduz Marketinq**, Bakıda kiçik reklam agentliyi. Burada 24 nəfər işləyir, siz isə onun rəhbərisiniz.
+> Yaxınlaşıb danışırsınız, tapşırıq verirsiniz. Hər birinin öz həyatı, öz fikri və öz danışıq tərzi var.
 
 ![Marketinq HQ](docs/screenshot.jpg)
 
@@ -15,7 +15,7 @@ Layihə Three.js, kiçik Node.js server, [Claude Code](https://docs.anthropic.co
 
 ## Mündəricat
 
-- [Hekayə: Mavi lift](#hekayə-mavi-lift)
+- [Hekayə](#hekayə)
 - [Nə edə bilərsiniz](#nə-edə-bilərsiniz)
 - [Tez başlanğıc](#tez-başlanğıc)
 - [Rejimlər](#rejimlər)
@@ -31,13 +31,13 @@ Layihə Three.js, kiçik Node.js server, [Claude Code](https://docs.anthropic.co
 
 ---
 
-## Hekayə: Mavi lift
+## Hekayə
 
-Hər səhər **Mavi lift**in qapısı açılır və hamı artıq masasındadır.
+Ulduz Marketinqi siz (**Rəhbər**) 2018-ci ildə iki otaqda açmısınız. İndi agentlik Fəvvarələr meydanının yaxınlığında köhnə binanın 3-cü mərtəbəsindədir və 24 nəfər işləyir.
 
-Lift yuxarı qalxanda bayırdakı həyat aşağıda qalır: ev, ailə, dünən axşam. Bunların heç biri 9-cu mərtəbəyə çıxmır. Ofisdə olanlar isə qalır: dünənki tapşırıq, Rəhbərlə söhbət, kampaniyada kimə nə təhvil verildi.
+Hər personajın öz tarixi var: Murad bağlanan qəzetdən gəlib və roman yazır, Nərmin Mingəçevirdən təzə gəlib və hamıya "siz" deyir, Zaur Statistika Komitəsindən gəlib və mənbəsiz rəqəmə inanmır. İş haqqında fikirləri var və zəif ideyaya "bəli" demirlər. Kimin kimlə dost olduğu, kimin kimlə mübahisə etdiyi söhbətlərdə görünür. Gördükləri iş və sizinlə söhbətlər yaddaşlarında qalır.
 
-Personajlar bunu qəribə saymır, onlar üçün həyat elə budur. Ofisdən kənar haqqında soruşsanız çaşacaq, maraqla düşünəcək, amma uydurma xatirə danışmayacaqlar. Onlar heç vaxt özlərini bot, proqram və ya kod adlandırmırlar. Siz onlar üçün **Rəhbər**siniz.
+Qaydalar: [docs/WORLD.md](docs/WORLD.md).
 
 Bütün hekayə və bələdçi oyunun içində də var: aşağıdakı paneldə **📖 Hekayə** düyməsi.
 
@@ -129,8 +129,8 @@ Animasiya, gəzmək, söhbət balonları və görüşlər **heç vaxt** model ç
 ```
 
 1. Brauzer ofisi çəkir. Gündəlik həyat (iş, fasilə, söhbətlər, görüşlər) tamamilə brauzerdədir.
-2. Siz danışanda server personajın **sistem promptunu** qurur: dünya qaydaları (lift, Rəhbər, "bot deyilsən"), xarakter, həmkarlar, indi nə etdiyi və Ruflo-dan gələn xatirələr.
-3. `claude -p` alətsiz işə salınır, cavab axınla (stream) brauzerə gəlir və nitq balonunda görünür.
+2. Siz danışanda server personajın **sistem promptunu** qurur: personajın bioqrafiyası, fikirləri, danışıq tərzi, münasibətləri, agentliyin tarixçəsi, həmkarlar, indi nə etdiyi və Ruflo-dan gələn xatirələr.
+3. Söhbətdə `claude -p` alətsiz işə salınır, cavab axınla (stream) brauzerə gəlir və nitq balonunda görünür. Tapşırıqda isə personaj öz kompüterində (sandbox qovluğu) fayl və terminalla işləyir; hər əmr və fayl monitor jurnalına düşür.
 4. Söhbətdən və ya işdən sonra qısa xatirə Ruflo-ya yazılır.
 5. Kampaniyada hər addımın nəticəsi növbəti agentin promptuna əlavə olunur; brauzer personajların bir-birinə işi "təhvil verməsini" animasiya edir.
 
@@ -151,9 +151,13 @@ Personajların xatirələri [Ruflo](https://github.com/ruvnet/ruflo)-nun yaddaş
 
 ## Təhlükəsizlik
 
-- Agentlər `claude -p --tools ""` ilə **alətsiz** işləyir: fayl oxuya, əmr işlədə, internetə və ya reklam kabinetinə girə bilməzlər.
+- **Söhbət** alətsizdir (`claude -p --tools ""`).
+- **Tapşırıq və kampaniya** personajın öz kompüterində gedir: `/Users/Shared/marketinq-ofisi/kompyuterler/<id>/` (macOS; dəyişmək üçün `PC_DIR`). Orada fayl yaradır, oxuyur və əmr işlədir. Claude sandbox-u (`--restricted` + `sandbox`) bunları bağlayır:
+  - yazmaq yalnız öz qovluğunda;
+  - bütün ev qovluğu (layihə faylları, `~/.ssh`, açarlar), qonşu personajların qovluqları və jurnal oxumağa bağlıdır;
+  - internet bağlıdır.
+- **Codex** personajları (`engine: 'codex'`) yalnız `CODEX=1` ilə Codex-də işləyir. Codex sandbox-u yazmağı qovluqla məhdudlaşdırır, amma **oxumağı yox**: ev qovluğunu görə bilər. Ona görə default olaraq onlar da Claude ilə işləyir.
 - İstifadəçi hook-ları, plugin-lər və MCP serverləri yüklənmir (`--setting-sources ""`, `--strict-mcp-config`).
-- İşçi qovluq boşdur (`.agent-workdir/`), layihə fayllarını görmürlər.
 - Server yalnız `127.0.0.1` ünvanında dinləyir.
 - `outputs/` və `yaddas/` git-ə düşmür (`.gitignore`).
 
@@ -166,7 +170,7 @@ Təhlükəsizlik problemi tapsanız: [SECURITY.md](SECURITY.md)
   - `TEAM`: ad, rol, şöbə, bacarıqlar, görünüş (dəri, saç, aksesuar).
   - `PERSONAS`: xarakter, vərdiş, sevdikləri, əhval emojisi.
   - `PIPE`: kampaniya addımları və ardıcıllığı.
-  - `WORLD`: şirkət adı, mərtəbə, lift, Rəhbər.
+  - `WORLD`: şirkət, ofis, tarixçə, Rəhbər.
 - **Kitab:** `public/book.js`, oyundakı hekayə fəsilləri.
 
 ## Layihə strukturu

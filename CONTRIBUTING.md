@@ -28,7 +28,7 @@ Canlı test üçün `claude auth login`, sonra `npm start`.
 
 1. **Bir PR, bir mövzu.** Kiçik, oxunaqlı dəyişikliklər daha tez qəbul olunur.
 2. **Build addımı yoxdur.** Asılılıq əlavə etməzdən əvvəl issue-da müzakirə edin. Brauzer kodu CDN-dən Three.js-dən başqa heç nə yükləmir.
-3. **Dünya qaydalarına hörmət.** Personajlar özlərini bot adlandırmır, ofisdən kənarı xatırlamır. Bu, layihənin ruhudur.
+3. **Dünya qaydalarına hörmət.** Personajlar real həyatı və fikri olan insanlardır; bioqrafiyalarına sadiq qalırlar. Bax [docs/WORLD.md](docs/WORLD.md).
 4. **Təhlükəsizlik.** Agentlərə alət (fayl, shell, internet) verən dəyişikliklər ayrıca müzakirə tələb edir. `--tools ""` standart qalmalıdır.
 5. **Ruflo.** Yaddaş yalnız `memory.mjs` vasitəsilədir. Lokal Ruflo qurulumunun fayllarını (`.claude/`, `.claude-flow/`, `CLAUDE.md`) commit etməyin.
 6. **Gizli məlumat yoxdur.** `company.md`-yə real şirkət datası yazmısınızsa, commit etməyin.
@@ -54,7 +54,7 @@ Bu layihədə hər kəsə hörmətlə yanaşırıq. [CODE_OF_CONDUCT.md](CODE_OF
 **Rules:**
 1. One topic per PR.
 2. No build step; discuss new dependencies in an issue first.
-3. Respect the world rules: characters never call themselves bots and don't remember life outside the office.
+3. Respect the world rules: characters are people with real lives and opinions, and stay true to their biographies. See docs/WORLD.md.
 4. Agents stay tool-less (`--tools ""`) unless a change is discussed first.
 5. Memory goes through `memory.mjs` only; don't commit local Ruflo setup files (`.claude/`, `.claude-flow/`, `CLAUDE.md`).
 6. Don't commit real company data in `company.md`.

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +15,7 @@ function startServer(outDir, delay = 0) {
   return new Promise((resolve, reject) => {
     const p = spawn(process.execPath, ['server.mjs'], {
       cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, MOCK: '1', PORT: '0', OUT_DIR: outDir, MOCK_DELAY: String(delay) },
+      env: { ...process.env, MOCK: '1', PORT: '0', OUT_DIR: outDir, MEMORY_DIR: path.join(outDir, 'yaddas'), PC_DIR: path.join(outDir, 'pc'), MOCK_DELAY: String(delay) },
     });
     let out = '';
     const t = setTimeout(() => { p.kill(); reject(new Error('server başlamadı: ' + out)); }, 15000);
@@ -135,5 +135,34 @@ test('server dayansa kampaniya yarımçıq qalır və qaldığı addımdan davam
     const state = JSON.parse(await readFile(path.join(dir, 'kampaniyalar', (await readdir(path.join(dir, 'kampaniyalar')))[0], 'state.json'), 'utf8'));
     assert.equal(state.status, 'done');
     assert.equal((await post(s.base, '/api/campaign/resume', { campaignId })).status, 409, 'bitmiş kampaniya davam etdirilmir');
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('kompüter: tapşırıq personajın qovluğunda fayl yaradır, monitor jurnalı yazılır, qovluqdan çıxmaq olmur', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    const events = [];
+    const done = waitEvent(s.base, ev => { if (ev.type === 'pc') events.push(ev); return ev.type === 'job' && ev.phase === 'done'; });
+    await post(s.base, '/api/task', { agentId: 'analyst', text: 'Aylıq ROMI hesabatı' });
+    await done;
+    assert.ok(events.some(e => e.agentId === 'analyst' && e.kind === 'cmd'), 'terminal əmri jurnala düşür');
+    assert.ok(events.some(e => e.kind === 'file' && /isler\/.*romi.*\.md/.test(e.text)), 'fayl yazılır: ' + events.map(e => e.text).join(' | '));
+
+    const info = await fetch(s.base + '/api/pc?id=analyst').then(r => r.json());
+    assert.equal(info.engine, 'codex');
+    assert.equal(info.runs, 'claude', 'CODEX=1 olmadan Codex personajı da Claude ilə işləyir');
+    const file = info.files.find(f => /romi/.test(f.f));
+    assert.ok(file, 'fayl siyahıda var');
+    assert.ok(info.log.some(l => l.kind === 'file'));
+
+    const r = await fetch(s.base + `/api/pc/file?id=analyst&f=${encodeURIComponent(file.f)}`).then(r => r.json());
+    assert.match(r.text, /Aylıq ROMI hesabatı/);
+
+    // qovluqdan çıxış: ../, mütləq yol, simlink — hamısı 404
+    await symlink('/etc/hosts', path.join(dir, 'pc', 'analyst', 'qacis'));
+    for (const f of ['../cmo/README.txt', '/etc/hosts', 'qacis', '']) {
+      assert.equal((await fetch(s.base + `/api/pc/file?id=analyst&f=${encodeURIComponent(f)}`)).status, 404, f);
+    }
+    assert.equal((await fetch(s.base + '/api/pc?id=yoxdur')).status, 404);
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });

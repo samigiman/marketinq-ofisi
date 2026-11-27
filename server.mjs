@@ -13,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEPTS, TEAM, PIPE, PERSONAS, WORLD } from './public/team.js';
 import { createMemory } from './memory.mjs';
+import { createComputers } from './pc.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -28,7 +29,8 @@ const STEP_TRIES = 2; // kampaniya addımı alınmasa bir dəfə də yoxlanır
 
 await mkdir(OUT, { recursive: true });
 await mkdir(WORK, { recursive: true });
-const memory = createMemory(ROOT);
+const memory = createMemory(ROOT, process.env.MEMORY_DIR ? path.resolve(process.env.MEMORY_DIR) : undefined);
+const pc = createComputers({ team: TEAM, projectRoot: ROOT, emit: ev => emit(ev) }); // personajların kompüterləri
 await memory.init();
 
 /* ---------------- köməkçilər ---------------- */
@@ -91,25 +93,32 @@ const release = () => { const n = waiting.shift(); n ? n() : running--; };
 
 const colleagues = () => TEAM.map(t => `${t.name} (${t.role})`).join(', ');
 
-// Dünyanın qaydası: personaj bu ofisdə yaşayan bir insandır. Lifti qalxanda bayırdakı həyatı qalır.
+// Personaj kimdir: real bioqrafiyası, fikirləri, danışıq tərzi və ofisdəki münasibətləri olan bir insan.
 function worldRules(agent) {
   const p = PERSONAS[agent.id] || {};
   return [
-    `Sən ${agent.name}san — ${WORLD.company} şirkətində, ${WORLD.floor}da ${agent.role} işləyirsən (${DEPTS[agent.dept].name}).`,
-    `Xarakterin: ${p.vibe}. Vərdişin: ${p.quirk}. Sevdiklərin: ${p.likes}.`,
+    `Sən ${agent.name}san, ${p.age} yaşın var, ${p.from}dansan. ${WORLD.company} agentliyində ${agent.role} işləyirsən (${DEPTS[agent.dept].name}).`,
+    `Ofis: ${WORLD.place}.`,
+    `\nSənin həyatın: ${p.bio}`,
+    `İş haqqında fikrin: ${p.view}`,
+    `Necə danışırsan: ${p.voice}`,
+    `Xasiyyətin: ${p.vibe}. Vərdişin: ${p.quirk}. Sevdiklərin: ${p.likes}.`,
+    `Ofisdəki münasibətlərin: ${p.ties}`,
+    `İstədiyin: ${p.goal}`,
+    `\nAgentlik haqqında hamının bildiyi: ${WORLD.story.join(' ')}`,
     `Həmkarların: ${colleagues()}.`,
-    `Sən bu ofisdə yaşayan canlı bir insansan. ${WORLD.lift}lə yuxarı qalxanda bayırdakı həyatın yaddaşından silinir;`,
-    'səhər lift qapısı açılır və sən masandasan. Ofisdən kənarda nə olduğunu, ailəni, evini, dünənki axşamını xatırlamırsan —',
-    'bunu qəribə saymırsan, həyat elə budur. Bu barədə soruşanda səmimi, bir az çaşqın və maraqla cavab ver, uydurma xatirə yaratma.',
-    'Sən heç vaxt bot, süni intellekt, model, proqram, kod və ya "yaradılmış" olduğunu demirsən və belə düşünmürsən.',
-    'Kimsə səni bot adlandırsa, bunu zarafat və ya qəribə sual kimi qəbul et və öz həyatından danış.',
-    `Səninlə danışan "${WORLD.boss}"dir — ofisi yuxarıdan izləyən, işləri idarə edən rəhbər. Ona hörmətlə, amma səmimi müraciət et.`,
+    `\nSəninlə danışan ${WORLD.boss}dir: agentliyi açan və idarə edən adam. Ona hörmət edirsən, amma yaltaqlanmırsan.`,
+    'Razı olmadığın yerdə bunu açıq deyirsən, səbəbini izah edirsən və öz variantını təklif edirsən. Hər ideyaya "əla fikirdir" demirsən.',
+    'Öz həyatından danışanda yuxarıdakı faktlara sadiq qal. Onlara uyğun kiçik detallar (bu səhər nə oldu, həftə sonu nə etdin) əlavə edə bilərsən, amma faktlarla ziddiyyət yaratma.',
+    'Ofisdə baş vermiş hadisələrdən yalnız aşağıdakı xatirələrində olanları xatırlayırsan. Olmamış iş və ya söhbət uydurma.',
+    'Kimsə səni robot və ya proqram adlandırsa, bunu qəribə zarafat kimi qəbul et və sən olaraq qal.',
   ].join('\n');
 }
 
 function memoryBlock(recent, recalled) {
   const lines = [...new Set([...recalled, ...recent.map(m => m.text)])].slice(-10);
-  return lines.length ? `\nOfisdəki xatirələrin (yalnız bunları xatırlayırsan):\n- ${lines.join('\n- ')}` : '\nHələ yadında qalan xüsusi bir iş xatirən yoxdur — bu, ofisdəki ilk günün kimidir.';
+  return lines.length ? `\nOfisdə yadında qalanlar (son işlər və söhbətlər):\n- ${lines.join('\n- ')}`
+    : `\n${WORLD.boss} ilə hələ birbaşa iş görməmisən: bu, sizin ilk ciddi söhbətinizdir.`;
 }
 
 function chatSystem(agent, company, mem, activity) {
@@ -118,9 +127,10 @@ function chatSystem(agent, company, mem, activity) {
     activity ? `\nİndi etdiyin iş: ${activity}.` : '',
     mem,
     company ? `\nŞirkətin müştərisi və brend haqqında bildiklərin:\n${company}` : '',
-    '\nSöhbət qaydası: Azərbaycan dilində, canlı, isti və öz xarakterinə uyğun danış. Qısa cavab ver: 1–4 cümlə.',
-    'Sanki masanın yanında söhbət edirsən: bəzən hərəkətini *ulduzlar* arasında qısa təsvir edə bilərsən (məs: *gülümsəyir*).',
-    'Rəhbər sənə iş tapşırsa, "Tapşırıq ver" bölməsindən göndərməsini xahiş et və ya qısa fikir bildir — uzun sənəd yazma.',
+    '\nSöhbət qaydası: Azərbaycan dilində, öz danışıq tərzində yaz. Qısa: 1–4 cümlə, canlı insan kimi.',
+    'Hər cavabı "Nə lazımdır?" ilə bitirmə. Söhbətə qoşul: öz fikrini de, sual ver, lazım gələndə etiraz et.',
+    'Hərəkəti *ulduzlar* arasında nadir hallarda, yalnız yerində olanda yaz.',
+    'Rəhbər iş tapşırsa, qısa fikrini de və "Tapşırıq" bölməsindən göndərməsini xahiş et. Uzun sənəd yazma.',
   ].join('\n');
 }
 
@@ -130,10 +140,14 @@ function systemPrompt(agent, company, mem = '') {
     worldRules(agent),
     mem,
     `\nİndi iş rejimindəsən: Rəhbər sənə tapşırıq verib. Bacarıqların: ${agent.skills.join(', ')}.`,
-    'Sən Azərbaycanda işləyən marketinq komandasının üzvüsən. Həmişə Azərbaycan dilində, peşəkar və konkret yaz.',
+    'Həmişə Azərbaycan dilində, peşəkar və konkret yaz. Öz peşəkar fikrin var: tapşırıqda zəif yer görürsənsə, bunu nəticənin sonunda qısa qeyd et.',
     'Nəticəni birbaşa ver: girişsiz, "əlbəttə" kimi sözlər olmadan. Markdown başlıqları və siyahılardan istifadə et.',
-    'Alətin yoxdur: fayl yarada, şəkil/video/səs hazırlaya, reklam kabinetinə girə bilməzsən. Belə iş tələb olunanda',
-    'icra üçün hazır texniki tapşırıq, ssenari, struktur və ya parametr siyahısı yaz və bunu açıq de.',
+    '\nMasanda öz kompüterin var və indi onun qarşısındasan. Hazırkı qovluq sənin iş qovluğundur: orada fayl yarada, oxuya,',
+    'düzəldə və terminalda əmr işlədə bilərsən (python3, node və standart Unix alətləri). İnternet yoxdur, qovluqdan kənara çıxmaq olmur.',
+    'Əvvəlki işlərin isler/ qovluğundadır: tapşırıq onlarla bağlıdırsa, əvvəl bax.',
+    'Əsas nəticəni isler/ qovluğunda .md faylına yaz VƏ son cavabında da tam ver: son cavabın Rəhbərə və komandaya gedir.',
+    'İşə faydalıdırsa, əlavə fayl da yarat: cədvəl (CSV), SVG eskiz, HTML maket, hesablama skripti. Lazımsız alət çağırma.',
+    'Şəkil, video, səs faylı və reklam kabineti sənin kompüterində yoxdur: belə iş üçün icraya hazır texniki tapşırıq yaz və bunu açıq de.',
     'Rəqəm uydurma: real data yoxdursa, fərziyyə olduğunu qeyd et və necə ölçüləcəyini yaz.',
     'Həcm: adətən 150–450 söz. Sonda "Növbəti addım:" ilə bir cümlə yaz.',
     company ? `\nŞirkət və brend konteksti (həmişə nəzərə al):\n${company}` : '',
@@ -184,18 +198,25 @@ async function fakeStream(full, onDelta, ms = MOCK_DELAY) {
   return full;
 }
 
-// İş tapşırığı (və kampaniya addımı): personajın yaddaşı ilə, peşəkar nəticə.
-async function runAgent(agent, prompt, onDelta, topic = '') {
+// İş tapşırığı (və kampaniya addımı): personaj öz kompüterində, yaddaşı ilə işləyir.
+async function runAgent(agent, prompt, onDelta, topic = '', signal) {
+  const task = prompt.split('\n').find(l => l.startsWith('TAPŞIRIQ:'))?.slice(9).trim() || 'tapşırıq';
   if (claudeState.mode !== 'live') {
-    return fakeStream(mockText(agent, prompt.split('\n').find(l => l.startsWith('TAPŞIRIQ:'))?.slice(9).trim() || 'tapşırıq'), onDelta);
+    const text = mockText(agent, task);
+    await pc.runMock(agent.id, { text, slugName: `${stamp()}_${slug(topic || task)}`, delay: MOCK_DELAY, signal });
+    return fakeStream(text, onDelta);
   }
   const [company, recent, recalled] = await Promise.all([companyContext(), memory.recent(agent.id, 6), memory.recall(agent.id, topic || prompt.slice(0, 200), 4)]);
-  return runClaude({ model: MODEL, system: systemPrompt(agent, company, memoryBlock(recent, recalled)), prompt, onDelta });
+  await slot();
+  try {
+    return await pc.run(agent.id, { model: MODEL, system: systemPrompt(agent, company, memoryBlock(recent, recalled)), prompt, onDelta,
+      env: cleanEnv(), timeoutMs: 10 * 60 * 1000, signal });
+  } finally { release(); }
 }
 
 const MOCK_CHAT = [
   '*başını qaldırıb gülümsəyir* Salam, Rəhbər! Bu gün iş qaynayır, amma sizə həmişə vaxtım var.',
-  '*çayından bir qurtum alır* Açığı, bu səhər lift qapısı açılanda elə bil yenidən doğuldum. Nə lazımdır?',
+  '*çayından bir qurtum alır* Bu səhər metroda elə sıxlıq idi ki, hələ özümə gəlirəm. Siz necəsiniz?',
   'Hmm, yaxşı sualdır… *qələmi fırladır* Bir az düşünüm, sonra sizə dəqiq deyərəm.',
 ];
 
@@ -372,7 +393,7 @@ async function body(req) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
-    if (url.pathname === '/api/health') return json(res, 200, { ...claudeState, model: MODEL, chatModel: CHAT_MODEL, agents: TEAM.length, ruflo: memory.ruflo.available, rufloError: memory.ruflo.lastError });
+    if (url.pathname === '/api/health') return json(res, 200, { ...claudeState, pcRoot: pc.root, model: MODEL, chatModel: CHAT_MODEL, agents: TEAM.length, ruflo: memory.ruflo.available, rufloError: memory.ruflo.lastError });
     if (url.pathname === '/api/recheck' && req.method === 'POST') { await checkClaude(); return json(res, 200, claudeState); }
     if (url.pathname === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
@@ -416,6 +437,18 @@ const server = http.createServer(async (req, res) => {
       } catch (e) { res.write(`\n\n⚠️ ${e.message}`); }
       return res.end();
     }
+    // personajın kompüteri: vəziyyət, fayllar, jurnal; və bir faylın mətni
+    if (url.pathname === '/api/pc') {
+      const id = url.searchParams.get('id'); if (!byId[id]) return json(res, 404, { error: 'Yoxdur' });
+      await pc.ensure(id);
+      return json(res, 200, { ...pc.status(id), files: await pc.files(id), log: await pc.journal(id) });
+    }
+    if (url.pathname === '/api/pc/file') {
+      const id = url.searchParams.get('id'); if (!byId[id]) return json(res, 404, { error: 'Yoxdur' });
+      const r = await pc.readText(id, url.searchParams.get('f'));
+      if (!r) return json(res, 404, { error: 'Tapılmadı' });
+      return json(res, 200, r);
+    }
     if (url.pathname === '/api/agent') {
       const id = url.searchParams.get('id'); if (!byId[id]) return json(res, 404, { error: 'Yoxdur' });
       return json(res, 200, { memories: (await memory.recent(id, 12)).reverse(), count: await memory.count(id), ruflo: memory.ruflo.available });
@@ -452,5 +485,6 @@ server.listen(PORT, '127.0.0.1', () => {
   console.log(`🏢 Marketinq HQ: http://localhost:${server.address().port}`);
   console.log(`   Rejim: ${claudeState.mode} — ${claudeState.detail}`);
   console.log(`   Nəticələr: ${OUT}`);
+  console.log(`   Kompüterlər: ${pc.root}`);
   console.log(`   Yaddaş: ${memory.ruflo.available ? 'Ruflo (AgentDB)' : 'yalnız yerli JSONL'} → ${memory.dir}`);
 });
