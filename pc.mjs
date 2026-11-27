@@ -73,6 +73,8 @@ export function createComputers({ team, projectRoot, emit }) {
     if (name === 'Edit') return ['file', `düzəltdi  ${rel(id, input.file_path)}`];
     if (name === 'Read') return ['file', `açdı  ${rel(id, input.file_path)}`];
     if (name === 'Glob' || name === 'Grep') return ['cmd', `axtarış: ${input.pattern || ''}`];
+    if (name === 'WebSearch') return ['cmd', `brauzer: axtarış “${input.query || ''}”`];
+    if (name === 'WebFetch') return ['cmd', `brauzer: ${input.url || ''}`];
     return ['cmd', name];
   }
 
@@ -99,9 +101,10 @@ export function createComputers({ team, projectRoot, emit }) {
     });
   }
 
-  async function runClaudePc(id, { model, system, prompt, onDelta, env, timeoutMs, signal }) {
+  async function runClaudePc(id, { model, system, prompt, onDelta, env, timeoutMs, signal, web }) {
     const args = ['-p', prompt, '--output-format', 'stream-json', '--verbose', '--include-partial-messages',
-      '--restricted', '--tools', 'Read,Write,Edit,Bash,Glob,Grep', '--settings', claudeSettings(id),
+      '--restricted', '--tools', `Read,Write,Edit,Bash,Glob,Grep${web ? ',WebSearch,WebFetch' : ''}`, '--settings', claudeSettings(id),
+      ...(web ? ['--allowedTools', 'WebSearch,WebFetch'] : []),
       '--permission-mode', 'acceptEdits', '--setting-sources', '', '--strict-mcp-config', '--disable-slash-commands',
       '--no-session-persistence', '--model', model, '--system-prompt', system];
     let acc = '', final = null;
