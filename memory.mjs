@@ -36,7 +36,15 @@ export function createMemory(root, dir = path.join(root, 'yaddas'), { now = () =
   let queue = Promise.resolve();
   let seq = 0; // eyni millisaniyədə yazılan xatirələrin açarı üst-üstə düşməsin
 
-  const run = (args, timeoutMs = 60000) => new Promise((resolve, reject) => {
+  // Hər Ruflo prosesi modeli ayrıca yükləyir: 8 paralel axtarış hərəsi ~14 s çəkir (tək 1.3 s). Ona görə eyni anda
+  // ən çox RUFLO_MAX (2) proses; qalanı növbə gözləyir, vaxt limiti proses başlayandan sayılır.
+  const RUFLO_MAX = Math.max(1, +process.env.RUFLO_MAX || 2);
+  let active = 0; const waiters = [];
+  const acquire = () => new Promise(r => (active < RUFLO_MAX ? (active++, r()) : waiters.push(r)));
+  const release = () => { const n = waiters.shift(); n ? n() : active--; };
+  const run = async (args, timeoutMs = 60000) => { await acquire(); try { return await spawnRuflo(args, timeoutMs); } finally { release(); } };
+
+  const spawnRuflo = (args, timeoutMs) => new Promise((resolve, reject) => {
     // Claude Code-un içindən işə salınanda CLAUDE_PROJECT_DIR və s. miras qalır və Ruflo
     // özünü HƏMİN layihəyə quraşdırır (hook-lar, plugin-lər, CLAUDE.md). Bunların hamısını silirik;
     // Ruflo yalnız yaddas/ qovluğunu görür.
@@ -195,7 +203,7 @@ export function createMemory(root, dir = path.join(root, 'yaddas'), { now = () =
     if (!ruflo.available || !ruflo.ready || !query) return [];
     try {
       const out = await run(['memory', 'search', '-q', model.query + String(query).slice(0, 200), '-n', ns(agentId), '--path', db,
-        '-l', String(n), '--format', 'json'], 30000); // yük altında (paralel işlər + yazmalar) 15 saniyə çatmırdı
+        '-l', String(n), '--format', 'json'], 20000);
       const j = JSON.parse(out.slice(out.indexOf('{')));
       const res = j.results || [];
       if (!res.length) return [];
