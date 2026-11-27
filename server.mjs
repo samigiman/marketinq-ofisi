@@ -389,7 +389,9 @@ async function runTask(agentId, text, { useDocs = false, extra = '', team = null
         emit({ type: 'job', phase: 'delta', jobId: job.id, agentId, chars: acc.length, tail: acc.slice(-90) });
       }, text, undefined, { web: useDocs ? false : WEB });
       const dir = path.join(OUT, 'tapsiriqlar'); await mkdir(dir, { recursive: true });
-      job.file = path.join('tapsiriqlar', `${stamp()}_${agentId}_${slug(text)}${revisionOf ? '_duzelis' : ''}.md`);
+      const base = `${stamp()}_${agentId}_${slug(text)}${revisionOf ? '_duzelis' : ''}`;
+      let n = 1; job.file = path.join('tapsiriqlar', `${base}.md`);
+      while (existsSync(path.join(OUT, job.file)) || taskMeta.has(job.file)) job.file = path.join('tapsiriqlar', `${base}-${++n}.md`); // eyni saniyədə eyni ad: köhnəni əzməsin
       await writeFile(path.join(OUT, job.file), `# ${agent.name} · ${agent.role}\n\n**Tapşırıq:** ${text}\n\n---\n\n${job.output}\n`);
       const meta = { file: job.file, agentId, text, at: Date.now(), team, revisionOf, merge };
       taskMeta.set(job.file, meta); appendFile(TASKS_FILE, JSON.stringify(meta) + '\n').catch(() => {});
@@ -398,6 +400,7 @@ async function runTask(agentId, text, { useDocs = false, extra = '', team = null
       memory.remember(agentId, `${merge ? 'Komandanın hissələrini birləşdirdim' : team ? 'Komanda işində mənə düşən hissə' : 'Rəhbər mənə tapşırıq verdi'}: "${text}". Hazırladım: ${job.output.replace(/[#*_]/g, '').slice(0, 260)}`, 'is');
       if (!team) memory.remember(SHARED, `${agent.name} (${agent.role}) "${text}" işini bitirdi.`, 'xeber');
       emit({ type: 'job', phase: 'done', jobId: job.id, agentId, text, output: job.output, file: job.file, team });
+      if (team && revisionOf && !merge) remergeTeam(team, agentId, ratings.get(revisionOf)?.note || '').catch(() => {});
     } catch (e) {
       job.status = 'error'; job.error = e.message;
       emit({ type: 'job', phase: 'error', jobId: job.id, agentId, text, error: e.message, team });
@@ -469,6 +472,50 @@ async function planTeam(text, lead) {
   return ranked.slice(0, Math.min(3, TEAM_MAX)).map(r => ({ agentId: r.id, task: `${text}: ${byId[r.id].role.toLowerCase()} hissəsi` }));
 }
 
+const bodyOf = md => String(md).split('\n---\n').slice(1).join('\n---\n').trim();
+
+// Rəhbər hissələri birləşdirir. why: yenidən birləşdirmənin səbəbi (Rəhbər bir hissəni geri qaytarıb, yeni variant gəlib).
+async function mergeTeam(teamId, text, lead, parts, why = '') {
+  const names = parts.map(p => byId[p.agentId].name).join(', ');
+  emit({ type: 'team', phase: 'merging', teamId, text, lead, again: !!why });
+  const merged = parts.map(p => `### ${byId[p.agentId].name} · ${byId[p.agentId].role}\n${String(p.output).slice(0, 5000)}`).join('\n\n');
+  const mj = await runTask(lead, text, { team: teamId, merge: true,
+    extra: `Sən bu komanda işinin rəhbərisən. Komanda (${names}) hissələri hazırladı və aşağıda tam mətnləri var: həmkarlarının qovluğuna baxmağa ehtiyac yoxdur. ${why ? `${why} Yekunu yenilənmiş hissəyə görə yenilə, dəyişəni qısa qeyd et. ` : ''}Onları vahid, ardıcıl, təkrarsız yekun sənədə çevir; ziddiyyət varsa qərar ver və qeyd et. Kimin hansı hissəni verdiyini sonda qısa göstər.\n<hisseler>\n${merged}\n</hisseler>` });
+  const m = await mj.promise;
+  if (m.status !== 'done') throw new Error(m.error || 'Birləşdirmə alınmadı');
+  return m.file;
+}
+
+// Komandanın bir hissəsi Rəhbərin iradı ilə yenidən ediləndə yekun avtomatik yenidən birləşdirilir.
+// Vəziyyət diskdəki iş izindən (isler.jsonl) bərpa olunur: server yenidən başlasa da işləyir.
+const remerging = new Map(); // teamId → növbə (eyni anda bir birləşdirmə)
+function remergeTeam(teamId, changedAgentId, note) {
+  const run = async () => {
+    const metas = [...taskMeta.values()].filter(m => m.team === teamId).sort((a, b) => a.at - b.at);
+    const last = metas.filter(m => m.merge).at(-1);
+    if (!last) return;
+    const latest = new Map(); for (const m of metas) if (!m.merge) latest.set(m.agentId, m);
+    const parts = [];
+    for (const m of latest.values()) { try { parts.push({ agentId: m.agentId, file: m.file, output: bodyOf(await readFile(path.join(OUT, m.file), 'utf8')) }); } catch {} }
+    const lead = isHired(last.agentId) ? last.agentId : leadOf();
+    if (!parts.length || !lead) return;
+    const t = teams.get(teamId);
+    if (t) { t.status = 'merging'; for (const p of t.parts) { const n = latest.get(p.agentId); if (n) p.file = n.file; } }
+    try {
+      const file = await mergeTeam(teamId, last.text, lead, parts,
+        `${WORLD.boss} ${byId[changedAgentId].name}-in hissəsini geri qaytarmışdı${note ? ` ("${note}")` : ''}, ${byId[changedAgentId].name} yeni variant hazırladı.`);
+      if (t) { t.file = file; t.status = 'done'; }
+      emit({ type: 'team', phase: 'done', teamId, text: last.text, lead, file, parts: t?.parts || parts.map(({ agentId, file }) => ({ agentId, file, status: 'done' })), again: true });
+    } catch (e) {
+      if (t) { t.status = 'error'; t.error = e.message; }
+      emit({ type: 'team', phase: 'error', teamId, text: last.text, error: e.message });
+    }
+  };
+  const next = (remerging.get(teamId) || Promise.resolve()).then(run);
+  remerging.set(teamId, next.catch(() => {}));
+  return next;
+}
+
 async function runTeam(text) {
   const lead = leadOf();
   if (!lead || staff.hired.length < 3) throw Object.assign(new Error('Komanda işi üçün ən azı 3 işçi lazımdır'), { code: 409 });
@@ -488,13 +535,8 @@ async function runTeam(text) {
       jobsRun.forEach((j, i) => { t.parts[i].status = j.status; t.parts[i].file = j.file; });
       const done = jobsRun.filter(j => j.status === 'done');
       if (!done.length) throw new Error('Heç bir hissə alınmadı');
-      emit({ type: 'team', phase: 'merging', teamId: t.id, text, lead });
-      const merged = done.map(j => `### ${byId[j.agentId].name} · ${byId[j.agentId].role}\n${j.output.slice(0, 5000)}`).join('\n\n');
-      const mj = await runTask(lead, text, { team: t.id, merge: true,
-        extra: `Sən bu komanda işinin rəhbərisən. Komanda (${names}) hissələri hazırladı və aşağıda tam mətnləri var: həmkarlarının qovluğuna baxmağa ehtiyac yoxdur. Onları vahid, ardıcıl, təkrarsız yekun sənədə çevir; ziddiyyət varsa qərar ver və qeyd et. Kimin hansı hissəni verdiyini sonda qısa göstər.\n<hisseler>\n${merged}\n</hisseler>` });
-      const m = await mj.promise;
-      if (m.status !== 'done') throw new Error(m.error || 'Birləşdirmə alınmadı');
-      t.file = m.file; t.status = 'done';
+      t.file = await mergeTeam(t.id, text, lead, done.map(j => ({ agentId: j.agentId, output: j.output })));
+      t.status = 'done';
       memory.remember(SHARED, `Komanda (${names}, rəhbər ${byId[lead].name}) birlikdə "${text}" üzərində işlədi.`, 'xeber');
       for (const p of t.parts) memory.remember(p.agentId, `${names} ilə birlikdə "${text}" komanda işində çalışdıq, ${byId[lead].name} birləşdirdi.`, 'is');
       emit({ type: 'team', phase: 'done', teamId: t.id, text, lead, file: t.file, parts: t.parts });

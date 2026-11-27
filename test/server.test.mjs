@@ -337,5 +337,15 @@ test('komanda tapşırığı: bölünür, hissələr paralel gedir, rəhbər bir
     assert.match(md, /Marketinq Direktoru/);
     assert.match(md, /Yay kampaniyası üçün Instagram post və slogan/);
     assert.equal((await fetch(s.base + '/api/rating?f=' + encodeURIComponent(ev.file)).then(r => r.json())).rateable, true);
+
+    // bir hissə geri qaytarılır → yeni variant → yekun avtomatik yenidən birləşdirilir
+    const again = waitEvent(s.base, e => e.type === 'team' && e.teamId === r.teamId && e.phase === 'done' && e.again, 60000);
+    const part = ev.parts[0];
+    assert.equal((await post(s.base, '/api/feedback', { file: part.file, verdict: 'redo', note: 'Daha qısa' })).status, 200);
+    const ev2 = await again;
+    assert.notEqual(ev2.file, ev.file, 'yeni yekun faylı');
+    assert.ok(ev2.parts.find(p => p.agentId === part.agentId).file !== part.file, 'yekunda yenilənmiş hissə');
+    const teams = await fetch(s.base + '/api/teams').then(r => r.json());
+    assert.equal(teams[0].file, ev2.file);
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });

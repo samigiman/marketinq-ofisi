@@ -521,7 +521,8 @@ live.sub('team', ev => {
   teamsView.set(t.id, t);
   const lead = byId(ev.lead);
   if (ev.phase === 'plan') log(lead, `komanda işini böldü: ${ev.parts.map(p => esc(byId(p.agentId)?.def.name || p.agentId)).join(', ')}`);
-  if (ev.phase === 'done') { log(lead, `komanda işini birləşdirdi: “${esc(ev.text)}”`); toast('Komanda işi hazırdır'); }
+  if (ev.phase === 'merging' && ev.again) log(lead, `yenilənmiş hissəyə görə yekunu yenidən birləşdirir: “${esc(ev.text)}”`);
+  if (ev.phase === 'done') { log(lead, ev.again ? `yekunu yenilədi: “${esc(ev.text)}”` : `komanda işini birləşdirdi: “${esc(ev.text)}”`); toast(ev.again ? 'Komanda işinin yekunu yeniləndi' : 'Komanda işi hazırdır'); }
   if (ev.phase === 'error') toast('Komanda işi alınmadı: ' + ev.error);
   renderTeams();
 });
