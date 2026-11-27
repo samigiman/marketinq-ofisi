@@ -80,6 +80,8 @@ Claude olmadan sınamaq üçün demo rejim:
 npm run demo
 ```
 
+Testlər (Claude çağırılmır): `npm test`.
+
 Seçimlər (mühit dəyişənləri):
 
 | Dəyişən | Standart | Nə edir |

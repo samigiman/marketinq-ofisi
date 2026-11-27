@@ -7,7 +7,7 @@
 
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { readFile, writeFile, mkdir, readdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, stat, rename } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,13 +16,15 @@ import { createMemory } from './memory.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
-const OUT = path.join(ROOT, 'outputs');
+const OUT = path.resolve(process.env.OUT_DIR || path.join(ROOT, 'outputs'));
 const WORK = path.join(ROOT, '.agent-workdir'); // agentlər üçün boş qovluq: heç bir layihə faylı görmürlər
-const PORT = +process.env.PORT || 5180;
+const PORT = process.env.PORT ? +process.env.PORT : 5180;
 const MODEL = process.env.MODEL || 'sonnet';
 const CHAT_MODEL = process.env.CHAT_MODEL || 'haiku';
 const MAX_PARALLEL = +process.env.MAX_PARALLEL || 3;
 const FORCE_MOCK = process.env.MOCK === '1';
+const MOCK_DELAY = process.env.MOCK_DELAY != null ? +process.env.MOCK_DELAY : 45; // demo axınının sürəti (ms/söz)
+const STEP_TRIES = 2; // kampaniya addımı alınmasa bir dəfə də yoxlanır
 
 await mkdir(OUT, { recursive: true });
 await mkdir(WORK, { recursive: true });
@@ -176,9 +178,9 @@ async function runClaude({ model, system, prompt, onDelta = () => {}, timeoutMs 
   } finally { release(); }
 }
 
-async function fakeStream(full, onDelta, ms = 45) {
+async function fakeStream(full, onDelta, ms = MOCK_DELAY) {
   let acc = '';
-  for (const w of full.split(/(?<=\s)/)) { acc += w; onDelta(acc); await new Promise(r => setTimeout(r, ms)); }
+  for (const w of full.split(/(?<=\s)/)) { acc += w; onDelta(acc); if (ms > 0) await new Promise(r => setTimeout(r, ms)); }
   return full;
 }
 
@@ -199,7 +201,7 @@ const MOCK_CHAT = [
 
 // Söhbət: qısa, xarakterli cavab; xatirələr Ruflo-dan gəlir.
 async function runChat(agent, message, history, activity, onDelta) {
-  if (claudeState.mode !== 'live') return fakeStream(MOCK_CHAT[Math.floor(Math.random() * MOCK_CHAT.length)] + ' _(demo)_', onDelta, 35);
+  if (claudeState.mode !== 'live') return fakeStream(MOCK_CHAT[Math.floor(Math.random() * MOCK_CHAT.length)] + ' _(demo)_', onDelta, Math.min(MOCK_DELAY, 35));
   const [company, recent, recalled] = await Promise.all([companyContext(), memory.recent(agent.id, 8), memory.recall(agent.id, message, 4)]);
   const convo = history.slice(-10).map(h => `${h.role === 'me' ? WORLD.boss : agent.name}: ${String(h.text).slice(0, 500)}`).join('\n');
   const prompt = `${convo ? `Bu söhbətin əvvəli:\n${convo}\n\n` : ''}${WORLD.boss}: ${message}\n\n${agent.name} olaraq cavab ver:`;
@@ -208,12 +210,10 @@ async function runChat(agent, message, history, activity, onDelta) {
 
 /* ---------------- SSE ---------------- */
 const clients = new Set();
-const history = []; // son hadisələr — yeni qoşulan brauzer üçün
 function emit(ev) {
   ev.at = Date.now();
   const data = `data: ${JSON.stringify(ev)}\n\n`;
   for (const c of clients) c.write(data);
-  if (ev.phase !== 'delta') { history.push(ev); if (history.length > 200) history.shift(); }
 }
 
 /* ---------------- tapşırıq və kampaniya ---------------- */
@@ -240,63 +240,133 @@ async function runTask(agentId, text) {
       if (claudeState.mode === 'live') memory.remember(agentId, `Rəhbər mənə tapşırıq verdi: "${text}". Hazırladım: ${job.output.replace(/[#*_]/g, '').slice(0, 260)}`, 'is');
       emit({ type: 'job', phase: 'done', jobId: job.id, agentId, text, output: job.output, file: job.file });
     } catch (e) {
-      job.status = 'error';
+      job.status = 'error'; job.error = e.message;
       emit({ type: 'job', phase: 'error', jobId: job.id, agentId, text, error: e.message });
     }
   })();
   return job;
 }
 
-async function runCampaign(name) {
-  if ([...campaigns.values()].some(c => c.status === 'running')) throw new Error('Bir kampaniya artıq gedir');
-  const camp = { id: uid(), name, status: 'running', step: 0, steps: [], dir: `${stamp()}_${slug(name)}` };
-  campaigns.set(camp.id, camp);
-  const dir = path.join(OUT, 'kampaniyalar', camp.dir); await mkdir(dir, { recursive: true });
-  emit({ type: 'campaign', phase: 'start', campaignId: camp.id, name, steps: PIPE.length, mode: claudeState.mode });
+// Kampaniyanın vəziyyəti hər addımdan sonra diskə yazılır (state.json). Server yenidən başlasa,
+// yarımçıq kampaniya "interrupted" kimi yüklənir və qaldığı addımdan davam etdirilə bilər.
+const CAMP_DIR = path.join(OUT, 'kampaniyalar');
+const STATE = 'state.json';
+const campSummary = c => ({ id: c.id, name: c.name, status: c.status, step: c.step, total: PIPE.length, error: c.error || null,
+  createdAt: c.createdAt, updatedAt: c.updatedAt, file: c.status === 'done' ? path.join('kampaniyalar', c.dir, '00-tam-kampaniya.md') : null,
+  steps: c.steps.map((s, k) => ({ step: k, agentId: s.agentId, file: s.file })) });
+
+async function saveCampaign(c) {
+  c.updatedAt = Date.now();
+  const file = path.join(CAMP_DIR, c.dir, STATE);
+  await writeFile(file + '.tmp', JSON.stringify(c, null, 1));
+  await rename(file + '.tmp', file); // yarımçıq yazılmış fayl qalmasın
+}
+
+async function loadCampaigns() {
+  if (!existsSync(CAMP_DIR)) return;
+  for (const d of await readdir(CAMP_DIR)) {
+    const f = path.join(CAMP_DIR, d, STATE);
+    if (!existsSync(f)) continue;
+    try {
+      const c = JSON.parse(await readFile(f, 'utf8'));
+      if (!c.id || !Array.isArray(c.steps)) continue;
+      if (c.status === 'running') { c.status = 'interrupted'; c.error = 'Server dayandı — kampaniya yarımçıq qaldı'; await saveCampaign(c); }
+      campaigns.set(c.id, c);
+    } catch { /* zədəli state faylı: keçirik */ }
+  }
+}
+
+function stepPrompt(camp, i) {
+  const st = PIPE[i];
+  const prev = camp.steps.map((s, k) => `### ${k + 1}. ${byId[s.agentId].name} (${byId[s.agentId].role}) — ${PIPE[k].out}\n${clip(s.output, 2200)}`).join('\n\n');
+  return [
+    `KAMPANİYA: «${camp.name}»`,
+    `TAPŞIRIQ: ${st.task}`,
+    `Sənin addımın: ${i + 1}/${PIPE.length}. Gözlənilən nəticə: ${st.out}.`,
+    i + 1 < PIPE.length ? `Nəticən növbəti addıma — ${byId[PIPE[i + 1].id].name} (${byId[PIPE[i + 1].id].role}) — təhvil veriləcək.` : 'Sən sonuncusan: bütün kampaniyanın yekun hesabatını yaz.',
+    prev ? `\nƏvvəlki addımların nəticələri:\n\n${prev}` : '\nSən birincisən: kampaniyanın brifini özün formalaşdır və təsdiqlə.',
+    '\nYalnız öz addımının nəticəsini yaz, əvvəlkiləri təkrarlama.',
+  ].join('\n');
+}
+
+const runningCampaign = () => [...campaigns.values()].find(c => c.status === 'running');
+
+// Kampaniyanı camp.steps.length-dən (ilk dəfə 0, davamda qaldığı addım) sona qədər aparır.
+function driveCampaign(camp) {
+  const from = camp.steps.length;
+  camp.status = 'running'; camp.error = null; camp.step = from;
+  emit({ type: 'campaign', phase: 'start', campaignId: camp.id, name: camp.name, steps: PIPE.length, from,
+    done: campSummary(camp).steps, mode: claudeState.mode });
   (async () => {
     try {
-      for (let i = 0; i < PIPE.length; i++) {
+      await saveCampaign(camp);
+      for (let i = from; i < PIPE.length; i++) {
         const st = PIPE[i], agent = byId[st.id];
         camp.step = i;
         emit({ type: 'campaign', phase: 'step-start', campaignId: camp.id, step: i, agentId: st.id, task: st.task });
-        const prev = camp.steps.map((s, k) => `### ${k + 1}. ${byId[s.agentId].name} (${byId[s.agentId].role}) — ${PIPE[k].out}\n${clip(s.output, 2200)}`).join('\n\n');
-        const prompt = [
-          `KAMPANİYA: «${name}»`,
-          `TAPŞIRIQ: ${st.task}`,
-          `Sənin addımın: ${i + 1}/${PIPE.length}. Gözlənilən nəticə: ${st.out}.`,
-          i + 1 < PIPE.length ? `Nəticən növbəti addıma — ${byId[PIPE[i + 1].id].name} (${byId[PIPE[i + 1].id].role}) — təhvil veriləcək.` : 'Sən sonuncusan: bütün kampaniyanın yekun hesabatını yaz.',
-          prev ? `\nƏvvəlki addımların nəticələri:\n\n${prev}` : '\nSən birincisən: kampaniyanın brifini özün formalaşdır və təsdiqlə.',
-          '\nYalnız öz addımının nəticəsini yaz, əvvəlkiləri təkrarlama.',
-        ].join('\n');
-        let last = 0;
-        const output = await runAgent(agent, prompt, acc => {
-          const now = Date.now(); if (now - last < 120) return; last = now;
-          emit({ type: 'campaign', phase: 'delta', campaignId: camp.id, step: i, agentId: st.id, chars: acc.length, tail: acc.slice(-90) });
-        });
+        let output, lastErr;
+        for (let attempt = 1; attempt <= STEP_TRIES && !output; attempt++) {
+          if (attempt > 1) emit({ type: 'campaign', phase: 'step-retry', campaignId: camp.id, step: i, agentId: st.id, attempt, error: lastErr.message });
+          let last = 0;
+          try {
+            output = await runAgent(agent, stepPrompt(camp, i), acc => {
+              const now = Date.now(); if (now - last < 120) return; last = now;
+              emit({ type: 'campaign', phase: 'delta', campaignId: camp.id, step: i, agentId: st.id, chars: acc.length, tail: acc.slice(-90) });
+            });
+          } catch (e) { lastErr = e; }
+        }
+        if (!output) throw lastErr;
         const file = path.join('kampaniyalar', camp.dir, `${String(i + 1).padStart(2, '0')}-${st.id}.md`);
         await writeFile(path.join(OUT, file), `# ${i + 1}. ${agent.name} · ${agent.role}\n\n**${st.task}** → ${st.out}\n\n---\n\n${output}\n`);
         camp.steps.push({ agentId: st.id, output, file });
-        if (claudeState.mode === 'live') memory.remember(st.id, `«${name}» kampaniyasında "${st.task}" işini gördüm${i + 1 < PIPE.length ? `, sonra ${byId[PIPE[i + 1].id].name}-a təhvil verdim` : ''}. Əsas fikir: ${output.replace(/[#*_]/g, '').slice(0, 200)}`, 'kampaniya');
+        await saveCampaign(camp);
+        if (claudeState.mode === 'live') memory.remember(st.id, `«${camp.name}» kampaniyasında "${st.task}" işini gördüm${i + 1 < PIPE.length ? `, sonra ${byId[PIPE[i + 1].id].name}-a təhvil verdim` : ''}. Əsas fikir: ${output.replace(/[#*_]/g, '').slice(0, 200)}`, 'kampaniya');
         emit({ type: 'campaign', phase: 'step-done', campaignId: camp.id, step: i, agentId: st.id, task: st.task, out: st.out, output, file });
       }
       const all = camp.steps.map((s, k) => `# ${k + 1}. ${byId[s.agentId].name} · ${byId[s.agentId].role} — ${PIPE[k].out}\n\n${s.output}`).join('\n\n---\n\n');
-      await writeFile(path.join(dir, '00-tam-kampaniya.md'), `# Kampaniya: ${name}\n\n${all}\n`);
-      camp.status = 'done';
-      emit({ type: 'campaign', phase: 'done', campaignId: camp.id, name, file: path.join('kampaniyalar', camp.dir, '00-tam-kampaniya.md') });
+      await writeFile(path.join(CAMP_DIR, camp.dir, '00-tam-kampaniya.md'), `# Kampaniya: ${camp.name}\n\n${all}\n`);
+      camp.status = 'done'; camp.step = PIPE.length;
+      await saveCampaign(camp);
+      emit({ type: 'campaign', phase: 'done', campaignId: camp.id, name: camp.name, file: path.join('kampaniyalar', camp.dir, '00-tam-kampaniya.md') });
     } catch (e) {
-      camp.status = 'error';
-      emit({ type: 'campaign', phase: 'error', campaignId: camp.id, step: camp.step, agentId: PIPE[camp.step]?.id, error: e.message });
+      camp.status = 'error'; camp.error = e?.message || String(e);
+      await saveCampaign(camp).catch(() => {});
+      emit({ type: 'campaign', phase: 'error', campaignId: camp.id, step: camp.step, agentId: PIPE[camp.step]?.id, error: camp.error });
     }
   })();
   return camp;
 }
+
+async function runCampaign(name) {
+  if (runningCampaign()) throw new Error('Bir kampaniya artıq gedir');
+  const camp = { id: uid(), name, status: 'running', step: 0, steps: [], dir: `${stamp()}_${slug(name)}`, createdAt: Date.now() };
+  campaigns.set(camp.id, camp);
+  await mkdir(path.join(CAMP_DIR, camp.dir), { recursive: true });
+  return driveCampaign(camp);
+}
+
+function resumeCampaign(id) {
+  const camp = campaigns.get(id);
+  if (!camp) throw Object.assign(new Error('Belə kampaniya yoxdur'), { code: 404 });
+  if (!['error', 'interrupted'].includes(camp.status)) throw Object.assign(new Error('Bu kampaniyanı davam etdirmək olmaz'), { code: 409 });
+  if (runningCampaign()) throw Object.assign(new Error('Bir kampaniya artıq gedir'), { code: 409 });
+  return driveCampaign(camp);
+}
+
+// Yeni qoşulan (və ya səhifəni yeniləyən) brauzer üçün indiki vəziyyət.
+const snapshot = () => ({
+  campaign: runningCampaign() ? campSummary(runningCampaign()) : null,
+  // gedən işlər + son bitənlər: qoşulma kəsiləndə buraxılmış "done" hadisəsini brauzer buradan bərpa edir
+  jobs: [...jobs.values()].filter((j, i, all) => j.status === 'running' || i >= all.length - 30)
+    .map(j => ({ jobId: j.id, agentId: j.agentId, text: j.text, status: j.status, file: j.file, error: j.error || null })),
+});
 
 /* ---------------- HTTP ---------------- */
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
 async function body(req) {
   let s = ''; for await (const c of req) { s += c; if (s.length > 20000) throw new Error('Çox böyük sorğu'); }
-  return s ? JSON.parse(s) : {};
+  try { return s ? JSON.parse(s) : {}; } catch { throw Object.assign(new Error('JSON oxunmadı'), { code: 400 }); }
 }
 
 const server = http.createServer(async (req, res) => {
@@ -306,7 +376,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/recheck' && req.method === 'POST') { await checkClaude(); return json(res, 200, claudeState); }
     if (url.pathname === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
-      res.write(`data: ${JSON.stringify({ type: 'hello', ...claudeState })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'hello', ...claudeState, ...snapshot() })}\n\n`);
       clients.add(res); const ka = setInterval(() => res.write(': ka\n\n'), 20000);
       req.on('close', () => { clients.delete(res); clearInterval(ka); });
       return;
@@ -322,6 +392,15 @@ const server = http.createServer(async (req, res) => {
       if (!name || String(name).length > 120) return json(res, 400, { error: 'Kampaniya adı 1–120 simvol olmalıdır' });
       try { const c = await runCampaign(String(name).trim()); return json(res, 200, { campaignId: c.id, mode: claudeState.mode }); }
       catch (e) { return json(res, 409, { error: e.message }); }
+    }
+    if (url.pathname === '/api/campaign/resume' && req.method === 'POST') {
+      const { campaignId } = await body(req);
+      try { const c = resumeCampaign(String(campaignId || '')); return json(res, 200, { campaignId: c.id, from: c.steps.length, mode: claudeState.mode }); }
+      catch (e) { return json(res, e.code || 500, { error: e.message }); }
+    }
+    if (url.pathname === '/api/campaigns') {
+      const list = [...campaigns.values()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 50).map(campSummary);
+      return json(res, 200, list);
     }
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       const { agentId, message, history = [], activity = '' } = await body(req);
@@ -363,13 +442,14 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(200, { 'content-type': MIME[path.extname(file)] || 'application/octet-stream', 'cache-control': 'no-store' });
     res.end(await readFile(file));
   } catch (e) {
-    json(res, 500, { error: e.message });
+    json(res, e.code === 400 ? 400 : 500, { error: e.message });
   }
 });
 
 await checkClaude();
+await loadCampaigns();
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`🏢 Marketinq HQ: http://localhost:${PORT}`);
+  console.log(`🏢 Marketinq HQ: http://localhost:${server.address().port}`);
   console.log(`   Rejim: ${claudeState.mode} — ${claudeState.detail}`);
   console.log(`   Nəticələr: ${OUT}`);
   console.log(`   Yaddaş: ${memory.ruflo.available ? 'Ruflo (AgentDB)' : 'yalnız yerli JSONL'} → ${memory.dir}`);

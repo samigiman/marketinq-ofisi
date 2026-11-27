@@ -1,0 +1,31 @@
+name: Testlər
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      # Testlər demo rejimdədir (MOCK=1): Claude CLI və Ruflo çağırılmır
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --check server.mjs && node --check memory.mjs
+      - run: npm test

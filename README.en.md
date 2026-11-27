@@ -44,7 +44,7 @@ claude auth login   # once; Claude subscription or API key
 npm start           # http://localhost:5180
 ```
 
-Without Claude, use demo mode with sample answers: `npm run demo`.
+Without Claude, use demo mode with sample answers: `npm run demo`. Tests (no Claude calls): `npm test`.
 
 | Variable | Default | Purpose |
 |---|---|---|

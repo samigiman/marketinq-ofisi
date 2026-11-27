@@ -37,6 +37,65 @@ live.task = async (agentId, text) => {
   return jobId;
 };
 live.campaign = async (name) => post('/api/campaign', { name });
+live.resume = async (campaignId) => post('/api/campaign/resume', { campaignId });
+live.campaigns = async () => fetch('/api/campaigns', { cache: 'no-store' }).then(r => (r.ok ? r.json() : []));
+
+// Kampaniya vəziyyətini (snapshot və ya davam) brauzerdə qurur: bitmiş addımlar "done" sayılır.
+const campFrom = (id, name, done = []) => {
+  const c = { id, name, step: done.length, steps: [], done: false };
+  for (const d of done) c.steps[d.step] = { chars: 0, tail: '', done: true, file: d.file };
+  return c;
+};
+
+// Hər (yenidən) qoşulmada serverin vəziyyəti ilə brauzerdəkini tutuşdurur. Qoşulma kəsiləndə
+// buraxılmış `done` hadisələri təkrar gəlmir, ona görə bitmiş addım və tapşırıqları snapshot-dan götürürük.
+function reconcile(ev) {
+  for (const sj of ev.jobs || []) {
+    let j = live.jobs.get(sj.jobId);
+    if (!j) {
+      if (sj.status !== 'running') continue; // bu səhifənin bilmədiyi köhnə iş
+      live.jobs.set(sj.jobId, (j = { agentId: sj.agentId, text: sj.text, chars: 0, tail: '', done: false }));
+    }
+    if (j.done || sj.status === 'running') continue;
+    j.done = true;
+    if (sj.status === 'done') j.file = sj.file; else j.error = sj.error || 'Alınmadı';
+    fire('job', { type: 'job', phase: sj.status === 'done' ? 'done' : 'error', jobId: sj.jobId, agentId: sj.agentId, text: sj.text, file: sj.file, error: j.error, job: j });
+  }
+  // serverin artıq unutduğu iş (məs. server yenidən başlayıb): sonsuz gözləməsin
+  const known = new Set((ev.jobs || []).map(j => j.jobId));
+  for (const [id, j] of live.jobs) if (!j.done && !known.has(id)) {
+    j.done = true; j.error = 'Server yenidən başladı';
+    fire('job', { type: 'job', phase: 'error', jobId: id, agentId: j.agentId, text: j.text, error: j.error, job: j });
+  }
+
+  const sc = ev.campaign, c = live.camp;
+  if (sc && (!c || c.id !== sc.id)) {
+    live.camp = campFrom(sc.id, sc.name, sc.steps);
+    fire('campaign', { phase: 'rejoin', campaignId: sc.id, name: sc.name, from: sc.steps.length, camp: live.camp });
+    return;
+  }
+  if (!c || c.done) return;
+  const settle = (summary) => {
+    for (const d of summary.steps) {
+      const s = (c.steps[d.step] ||= { chars: 0, tail: '', done: false });
+      if (!s.done) { s.done = true; s.file = d.file; fire('campaign', { type: 'campaign', phase: 'step-done', campaignId: c.id, step: d.step, agentId: d.agentId, file: d.file, camp: c }); }
+    }
+    c.step = Math.max(c.step, summary.steps.length);
+  };
+  if (sc) { settle(sc); return; } // hələ gedir: yalnız buraxılmış addımları əlavə et
+  // kampaniya snapshot-da yoxdur: ya bitib, ya da dayanıb — dəqiq vəziyyəti soruşuruq
+  live.campaigns().then(list => {
+    if (c.done || live.camp !== c) return;
+    const s = list.find(x => x.id === c.id);
+    if (s) settle(s);
+    c.done = true;
+    if (s?.status === 'done') { c.file = s.file; fire('campaign', { type: 'campaign', phase: 'done', campaignId: c.id, name: c.name, file: s.file, camp: c }); }
+    else {
+      c.error = s?.error || 'Server yenidən başladı — kampaniya yarımçıq qaldı';
+      fire('campaign', { type: 'campaign', phase: 'error', campaignId: c.id, error: c.error, camp: c });
+    }
+  }).catch(() => {});
+}
 
 live.init = async () => {
   paintBadge();
@@ -48,7 +107,12 @@ live.init = async () => {
   const es = new EventSource('/api/events');
   es.onmessage = m => {
     const ev = JSON.parse(m.data);
-    if (ev.type === 'hello') { live.mode = ev.mode; live.detail = ev.detail; paintBadge(); return; }
+    if (ev.type === 'hello') {
+      live.mode = ev.mode; live.detail = ev.detail; paintBadge();
+      reconcile(ev);
+      fire('hello', ev);
+      return;
+    }
     if (ev.type === 'job') {
       let j = live.jobs.get(ev.jobId);
       if (!j) live.jobs.set(ev.jobId, (j = { agentId: ev.agentId, text: ev.text, chars: 0, tail: '', done: false }));
@@ -58,7 +122,7 @@ live.init = async () => {
       fire('job', { ...ev, job: j });
     }
     if (ev.type === 'campaign') {
-      if (ev.phase === 'start') live.camp = { id: ev.campaignId, name: ev.name, step: 0, steps: [], done: false };
+      if (ev.phase === 'start') live.camp = campFrom(ev.campaignId, ev.name, ev.done);
       const c = live.camp; if (!c || c.id !== ev.campaignId) return;
       if (ev.step != null) { c.step = ev.step; c.steps[ev.step] ||= { chars: 0, tail: '', done: false }; }
       const s = ev.step != null ? c.steps[ev.step] : null;
