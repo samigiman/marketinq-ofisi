@@ -514,7 +514,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   if (!remoteGate(req, res, url)) return;
   try {
-    if (url.pathname === '/api/health') return json(res, 200, { ...claudeState, pcRoot: pc.root, web: WEB, docs: DOCS ? docs.tools.length : 0, skills: await skillsFound(), model: MODEL, chatModel: CHAT_MODEL, agents: TEAM.length, ruflo: memory.ruflo.available, rufloError: memory.ruflo.lastError });
+    if (url.pathname === '/api/health') return json(res, 200, { ...claudeState, pcRoot: pc.root, web: WEB, docs: DOCS ? docs.tools.length : 0, skills: await skillsFound(), model: MODEL, chatModel: CHAT_MODEL, agents: TEAM.length, ruflo: memory.ruflo.available, rufloReady: memory.ruflo.ready, rufloModel: memory.ruflo.model, rufloError: memory.ruflo.lastError });
     if (url.pathname === '/api/recheck' && req.method === 'POST') { await checkClaude(); return json(res, 200, claudeState); }
     if (url.pathname === '/api/events') {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });

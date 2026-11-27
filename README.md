@@ -174,7 +174,9 @@ Personajların xatirələri [Ruflo](https://github.com/ruvnet/ruflo)-nun yaddaş
 - Danışanda mövzuya uyğun xatirələr semantik axtarışla gəlir.
 - Ehtiyat üçün hər xatirə `yaddas/<id>.jsonl` faylına da yazılır. Ruflo işləməsə belə son xatirələr itmir.
 - Yaddaşı sıfırlamaq, yəni ofisi "ilk günə" qaytarmaq üçün `yaddas/` qovluğunu silin.
-- İlk xatirədə Ruflo embedding modelini bir dəfə endirir (~20 saniyə).
+- Model: Ruflo-nun standart modeli (`all-MiniLM-L6-v2`) yalnız ingiliscədir, ona görə çoxdilli `multilingual-e5-small` (8-bit, ~118 MB) qoşulur. Server ilk işə düşəndə modeli bir dəfə Hugging Face-dən `~/.cache/ruflo/models`-ə endirir, o vaxta qədər xatirələr yalnız JSONL-ə yazılır. Azərbaycan dilində test dəstində düzgün xatirə 4/11-dən 7/11-ə qalxdı, aidiyyəti olmayan sorğuda isə artıq heç nə qaytarılmır.
+- Baza köhnə modellə qurulubsa, `kohne-…` adı ilə kənara qoyulur və bütün xatirələr JSONL-dən yeni modelə yenidən yazılır. `MEMORY_MODEL=minilm` köhnə modelə qaytarır.
+- Axtarış xatirənin tam mətnini qaytarır (əvvəllər ~50 simvolluq önizləmə gedirdi).
 
 > ℹ️ Ruflo `CLAUDE_PROJECT_DIR` kimi Claude Code mühit dəyişənlərini oxuyur. Ofis serveri Claude Code-un içindən işə salınsa belə yaddaşın başqa layihəyə qarışmaması üçün Ruflo yalnız `yaddas/` qovluğunda, bu dəyişənlər olmadan işə salınır. Bu layihə Ruflo-nu yalnız yaddaş üçün işlədir, `ruflo init` lazım deyil.
 > Ətraflı: [docs/RUFLO.md](docs/RUFLO.md)

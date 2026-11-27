@@ -284,3 +284,16 @@ test('ortaq arxiv: tapşırıq Drive/Canva materialı ilə gedir, DOCS=0 olanda 
     assert.equal((await post(s2.base, '/api/task', { agentId: 'cmo', text: 'x' })).status, 200);
   } finally { await s2.stop(); await rm(dir2, { recursive: true, force: true }); }
 });
+
+test('yaddaş: eyni anda yazılan xatirələr ayrı açar alır', async () => {
+  const { createMemory } = await import('../memory.mjs');
+  const dir = await tmp();
+  try {
+    const m = createMemory(dir, path.join(dir, 'yaddas')); // dir-də ruflo yoxdur: yalnız JSONL
+    await m.init();
+    await Promise.all([m.remember('cmo', 'bir'), m.remember('cmo', 'iki'), m.remember('cmo', 'üç')]);
+    const items = await m.recent('cmo', 10);
+    assert.equal(items.length, 3);
+    assert.equal(new Set(items.map(x => x.id)).size, 3);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
