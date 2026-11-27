@@ -50,6 +50,40 @@ async function waitEvent(base, pred, timeoutMs = 30000) {
   } finally { clearTimeout(t); ac.abort(); }
 }
 
+// Bir SSE axını açır və bütün hadisələri yığır; wait(pred) artıq gəlmiş və ya gələcək hadisəni qaytarır.
+async function collect(base) {
+  const ac = new AbortController();
+  const all = [], waiters = [];
+  const r = await fetch(base + '/api/events', { signal: ac.signal });
+  (async () => {
+    const dec = new TextDecoder(); let buf = '';
+    try {
+      for await (const chunk of r.body) {
+        buf += dec.decode(chunk, { stream: true }); let i;
+        while ((i = buf.indexOf('\n\n')) >= 0) {
+          const block = buf.slice(0, i); buf = buf.slice(i + 2);
+          if (!block.startsWith('data: ')) continue;
+          const ev = JSON.parse(block.slice(6)); all.push(ev);
+          for (const w of [...waiters]) if (w.pred(ev)) { waiters.splice(waiters.indexOf(w), 1); w.resolve(ev); }
+        }
+      }
+    } catch { /* bağlandı */ }
+  })();
+  return {
+    all, close: () => ac.abort(),
+    wait(pred, timeoutMs = 30000) {
+      const hit = all.find(pred); if (hit) return Promise.resolve(hit);
+      return new Promise((resolve, reject) => {
+        const w = { pred, resolve }; waiters.push(w);
+        setTimeout(() => { if (waiters.includes(w)) reject(new Error('hadisə gəlmədi')); }, timeoutMs);
+      });
+    },
+  };
+}
+const camp = (id, phase, more = {}) => ev => ev.type === 'campaign' && ev.campaignId === id && ev.phase === phase && Object.entries(more).every(([k, v]) => ev[k] === v);
+const idx = id => PIPE.findIndex(p => p.id === id);
+const campaignsOf = base => fetch(base + '/api/campaigns').then(r => r.json());
+
 const tmp = () => mkdtemp(path.join(tmpdir(), 'ofis-test-'));
 
 test('health demo rejimi göstərir, yanlış sorğular rədd olunur', async () => {
@@ -81,59 +115,118 @@ test('tapşırıq SSE ilə bitir və nəticə faylı yazılır', async () => {
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });
 
-test('kampaniya sona qədər gedir, vəziyyət diskdə saxlanılır', async () => {
+test('avto kampaniya: paralel addımlar, CMO geri qaytarır, sona qədər gedir', async () => {
   const dir = await tmp(); const s = await startServer(dir);
+  const ev = await collect(s.base);
   try {
-    const done = waitEvent(s.base, ev => ev.type === 'campaign' && ev.phase === 'done');
-    const { campaignId } = await post(s.base, '/api/campaign', { name: 'Test kampaniyası' }).then(r => r.json());
-    await done;
-    const [c] = await fetch(s.base + '/api/campaigns').then(r => r.json());
-    assert.equal(c.id, campaignId);
+    const { campaignId: id } = await post(s.base, '/api/campaign', { name: 'Test kampaniyası', auto: true }).then(r => r.json());
+    await ev.wait(camp(id, 'done'));
+    const c = (await campaignsOf(s.base))[0];
     assert.equal(c.status, 'done');
-    assert.equal(c.steps.length, PIPE.length);
-    const [sub] = await readdir(path.join(dir, 'kampaniyalar'));
-    const files = await readdir(path.join(dir, 'kampaniyalar', sub));
+    assert.ok(c.steps.every(x => x.status === 'done'));
+
+    // CMO kopirayterin ilk variantını qaytardı, ikinci variant qəbul olundu
+    const reviews = ev.all.filter(e => e.phase === 'step-reviewed' && e.step === idx('copy'));
+    assert.deepEqual(reviews.map(r => r.ok), [false, true]);
+    assert.equal(c.steps[idx('copy')].notes[0].by, 'cmo');
+
+    // konsepsiyadan sonra sloqan və jingle eyni vaxtda başlayır
+    const order = ev.all.filter(e => e.campaignId === id && ['step-start', 'step-done'].includes(e.phase)).map(e => `${e.phase}:${e.agentId}`);
+    const copyStart = order.indexOf('step-start:copy'), jingleStart = order.indexOf('step-start:composer');
+    assert.ok(copyStart >= 0 && jingleStart >= 0);
+    assert.ok(order.indexOf('step-done:copy') > jingleStart && order.indexOf('step-done:composer') > copyStart, 'paralel getməlidir: ' + order.join(' '));
+
+    const files = await readdir(path.join(dir, 'kampaniyalar', (await readdir(path.join(dir, 'kampaniyalar')))[0]));
     assert.ok(files.includes('00-tam-kampaniya.md') && files.includes('state.json'));
-    assert.equal(files.filter(f => /^\d\d-/.test(f)).length, PIPE.length + 1); // 13 addım + 00-tam
-  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+    assert.equal(files.filter(f => /^\d\d-/.test(f)).length, PIPE.length + 1);
+  } finally { ev.close(); await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });
 
-test('server dayansa kampaniya yarımçıq qalır və qaldığı addımdan davam edir', async () => {
+test('Rəhbərin təsdiqi: brif gözləyir, düzəliş istənir, təsdiqdən sonra davam edir', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  const ev = await collect(s.base);
+  try {
+    const { campaignId: id } = await post(s.base, '/api/campaign', { name: 'Novruz 2027' }).then(r => r.json());
+    await ev.wait(camp(id, 'awaiting'));
+    let c = (await campaignsOf(s.base))[0];
+    assert.equal(c.status, 'awaiting');
+    assert.equal(c.steps[0].status, 'awaiting');
+    assert.equal(c.steps[1].status, 'pending', 'brif təsdiqlənməmiş insight başlamır');
+
+    assert.equal((await post(s.base, '/api/campaign/approve', { campaignId: id, step: 1 })).status, 409);
+    assert.equal((await post(s.base, '/api/campaign/revise', { campaignId: id, step: 0, note: '' })).status, 400);
+    assert.equal((await post(s.base, '/api/campaign', { name: 'İkinci' })).status, 409, 'təsdiq gözləyən kampaniya da aktivdir');
+
+    const n = ev.all.length;
+    assert.equal((await post(s.base, '/api/campaign/revise', { campaignId: id, step: 0, note: 'Büdcəni 30% azalt' })).status, 200);
+    await ev.wait(e => ev.all.indexOf(e) >= n && camp(id, 'step-awaiting', { step: 0 })(e));
+    c = (await campaignsOf(s.base))[0];
+    assert.deepEqual(c.steps[0].notes.map(x => [x.by, x.note]), [['boss', 'Büdcəni 30% azalt']]);
+
+    await post(s.base, '/api/campaign/approve', { campaignId: id, step: 0 });
+    await ev.wait(camp(id, 'step-awaiting', { step: idx('artdir') }));
+    c = (await campaignsOf(s.base))[0];
+    assert.equal(c.steps[idx('copy')].status, 'pending', 'konsepsiya təsdiqlənməmiş sloqan başlamır');
+
+    await post(s.base, '/api/campaign/approve', { campaignId: id, step: idx('artdir') });
+    await ev.wait(camp(id, 'done'));
+    assert.equal((await campaignsOf(s.base))[0].status, 'done');
+  } finally { ev.close(); await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('dayandır və davam et', async () => {
+  const dir = await tmp(); const s = await startServer(dir, 10);
+  const ev = await collect(s.base);
+  try {
+    const { campaignId: id } = await post(s.base, '/api/campaign', { name: 'Fasilə', auto: true }).then(r => r.json());
+    await ev.wait(camp(id, 'step-done', { step: 1 }));
+    assert.equal((await post(s.base, '/api/campaign/pause', { campaignId: id })).status, 200);
+    await ev.wait(camp(id, 'paused'));
+    const c = (await campaignsOf(s.base))[0];
+    assert.equal(c.status, 'paused');
+    assert.ok(c.steps.every(x => ['done', 'pending'].includes(x.status)), 'yarımçıq addım pending-ə qayıdır');
+    assert.equal((await post(s.base, '/api/campaign/pause', { campaignId: id })).status, 409);
+
+    await post(s.base, '/api/campaign/resume', { campaignId: id });
+    await ev.wait(camp(id, 'done'), 60000);
+  } finally { ev.close(); await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('server dayansa: gedən kampaniya yarımçıq qalır, təsdiq gözləyən isə gözləməyə davam edir', async () => {
   const dir = await tmp();
   let s = await startServer(dir, 15);
-  let campaignId;
+  let ev = await collect(s.base);
+  let id;
   try {
-    const twoDone = waitEvent(s.base, ev => ev.type === 'campaign' && ev.phase === 'step-done' && ev.step === 1);
-    ({ campaignId } = await post(s.base, '/api/campaign', { name: 'Novruz 2027' }).then(r => r.json()));
-    assert.equal((await post(s.base, '/api/campaign', { name: 'İkinci' })).status, 409, 'eyni anda ikinci kampaniya olmaz');
-    await twoDone;
-    // yenidən qoşulan brauzer gedən kampaniyanı görür
-    const hello = await waitEvent(s.base, ev => ev.type === 'hello');
-    assert.equal(hello.campaign?.id, campaignId);
-    assert.ok(hello.campaign.steps.length >= 2);
-  } finally { await s.stop(); }
+    ({ campaignId: id } = await post(s.base, '/api/campaign', { name: 'Yay', auto: true }).then(r => r.json()));
+    await ev.wait(camp(id, 'step-done', { step: 1 }));
+    const hello = await collect(s.base).then(async e2 => { const h = await e2.wait(e => e.type === 'hello'); e2.close(); return h; });
+    assert.equal(hello.campaign?.id, id, 'yenidən qoşulan brauzer gedən kampaniyanı görür');
+  } finally { ev.close(); await s.stop(); }
 
   s = await startServer(dir, 0);
+  ev = await collect(s.base);
   try {
-    const [c] = await fetch(s.base + '/api/campaigns').then(r => r.json());
-    assert.equal(c.id, campaignId);
+    const c = (await campaignsOf(s.base))[0];
     assert.equal(c.status, 'interrupted');
-    const from = c.steps.length;
-    assert.ok(from >= 2 && from < PIPE.length);
+    assert.ok(c.done >= 2 && c.done < PIPE.length);
+    assert.ok(c.steps.every(x => ['done', 'pending'].includes(x.status)));
+    await post(s.base, '/api/campaign/resume', { campaignId: id });
+    await ev.wait(camp(id, 'done'));
+    assert.equal((await post(s.base, '/api/campaign/resume', { campaignId: id })).status, 409, 'bitmiş kampaniya davam etdirilmir');
 
-    const start = waitEvent(s.base, ev => ev.type === 'campaign' && ev.phase === 'start');
-    const done = waitEvent(s.base, ev => ev.type === 'campaign' && ev.phase === 'done');
-    const r = await post(s.base, '/api/campaign/resume', { campaignId }).then(r => r.json());
-    assert.equal(r.from, from);
-    const st = await start;
-    assert.equal(st.from, from);
-    assert.equal(st.done.length, from);
-    await done;
-    const [after] = await fetch(s.base + '/api/campaigns').then(r => r.json());
-    assert.equal(after.status, 'done');
-    assert.equal(after.steps.length, PIPE.length);
-    const state = JSON.parse(await readFile(path.join(dir, 'kampaniyalar', (await readdir(path.join(dir, 'kampaniyalar')))[0], 'state.json'), 'utf8'));
-    assert.equal(state.status, 'done');
-    assert.equal((await post(s.base, '/api/campaign/resume', { campaignId })).status, 409, 'bitmiş kampaniya davam etdirilmir');
-  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+    // təsdiq gözləyən kampaniya
+    const { campaignId: g } = await post(s.base, '/api/campaign', { name: 'Gözləyən' }).then(r => r.json());
+    await ev.wait(camp(g, 'awaiting'));
+  } finally { ev.close(); await s.stop(); }
+
+  s = await startServer(dir, 0);
+  ev = await collect(s.base);
+  try {
+    const list = await campaignsOf(s.base);
+    const g = list.find(x => x.name === 'Gözləyən');
+    assert.equal(g.status, 'awaiting');
+    await post(s.base, '/api/campaign/approve', { campaignId: g.id, step: 0 });
+    await ev.wait(camp(g.id, 'step-awaiting', { step: idx('artdir') }));
+  } finally { ev.close(); await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });

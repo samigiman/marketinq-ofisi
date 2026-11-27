@@ -5,7 +5,10 @@ export const live = {
   mode: 'offline',          // offline (server yoxdur → köhnə simulyasiya) | mock (demo) | live (Claude)
   detail: '',
   jobs: new Map(),          // jobId → { agentId, text, chars, tail, done, error, output, file }
-  camp: null,               // { id, name, step, steps: [{done, chars, tail, output, file}], done, error, file }
+  // { id, name, auto, status, ended, error, file, steps: [{ status, agentId, chars, tail, file, notes, review }] }
+  // addım statusu: pending | running | review | awaiting | done | error
+  // kampaniya statusu: running | awaiting | done | error | paused | interrupted; ended = artıq getmir
+  camp: null,
   get on() { return this.mode !== 'offline'; },
   sub(type, fn) { (listeners[type] ||= []).push(fn); },
 };
@@ -36,16 +39,37 @@ live.task = async (agentId, text) => {
   if (!live.jobs.has(jobId)) live.jobs.set(jobId, { agentId, text, chars: 0, tail: '', done: false });
   return jobId;
 };
-live.campaign = async (name) => post('/api/campaign', { name });
+live.campaign = async (name, auto = false) => post('/api/campaign', { name, auto });
 live.resume = async (campaignId) => post('/api/campaign/resume', { campaignId });
+live.pause = async (campaignId) => post('/api/campaign/pause', { campaignId });
+live.approve = async (campaignId, step) => post('/api/campaign/approve', { campaignId, step });
+live.revise = async (campaignId, step, note) => post('/api/campaign/revise', { campaignId, step, note });
 live.campaigns = async () => fetch('/api/campaigns', { cache: 'no-store' }).then(r => (r.ok ? r.json() : []));
 
-// Kampaniya vəziyyətini (snapshot və ya davam) brauzerdə qurur: bitmiş addımlar "done" sayılır.
-const campFrom = (id, name, done = []) => {
-  const c = { id, name, step: done.length, steps: [], done: false };
-  for (const d of done) c.steps[d.step] = { chars: 0, tail: '', done: true, file: d.file };
-  return c;
-};
+const ENDED = ['done', 'error', 'paused', 'interrupted'];
+// Serverin campSummary-sindən brauzerdəki kampaniya obyekti.
+const campFrom = sum => ({
+  id: sum.id, name: sum.name, auto: !!sum.auto, status: sum.status, ended: ENDED.includes(sum.status), error: sum.error, file: sum.file,
+  steps: sum.steps.map(d => ({ status: d.status, agentId: d.agentId, chars: 0, tail: '', file: d.file, notes: d.notes || [], review: null })),
+});
+// Snapshot-dakı addım statusunu yerliyə köçürür; dəyişən hər addım üçün uyğun hadisəni yenidən yayır,
+// ki, animasiya qoşulma kəsiləndə buraxdığı keçidləri də görsün.
+const PHASE_OF = { running: 'step-start', review: 'step-review', awaiting: 'step-awaiting', done: 'step-done' };
+function syncSteps(c, sum) {
+  for (const d of sum.steps) {
+    const s = c.steps[d.step];
+    s.notes = d.notes || s.notes;
+    if (s.status === d.status) continue;
+    s.status = d.status; if (d.file) s.file = d.file;
+    if (d.status === 'running') { s.chars = 0; s.tail = ''; }
+    if (PHASE_OF[d.status]) fire('campaign', { type: 'campaign', phase: PHASE_OF[d.status], campaignId: c.id, step: d.step, agentId: d.agentId, file: d.file, camp: c, synced: true });
+  }
+}
+function endCamp(c, status, extra = {}) {
+  c.status = status; c.ended = true; Object.assign(c, extra);
+  const phase = status === 'done' ? 'done' : status === 'paused' ? 'paused' : 'error';
+  fire('campaign', { type: 'campaign', phase, campaignId: c.id, name: c.name, file: c.file, error: c.error, camp: c, synced: true });
+}
 
 // Hər (yenidən) qoşulmada serverin vəziyyəti ilə brauzerdəkini tutuşdurur. Qoşulma kəsiləndə
 // buraxılmış `done` hadisələri təkrar gəlmir, ona görə bitmiş addım və tapşırıqları snapshot-dan götürürük.
@@ -70,30 +94,23 @@ function reconcile(ev) {
 
   const sc = ev.campaign, c = live.camp;
   if (sc && (!c || c.id !== sc.id)) {
-    live.camp = campFrom(sc.id, sc.name, sc.steps);
-    fire('campaign', { phase: 'rejoin', campaignId: sc.id, name: sc.name, from: sc.steps.length, camp: live.camp });
+    live.camp = campFrom(sc);
+    fire('campaign', { phase: 'rejoin', campaignId: sc.id, name: sc.name, camp: live.camp });
     return;
   }
-  if (!c || c.done) return;
-  const settle = (summary) => {
-    for (const d of summary.steps) {
-      const s = (c.steps[d.step] ||= { chars: 0, tail: '', done: false });
-      if (!s.done) { s.done = true; s.file = d.file; fire('campaign', { type: 'campaign', phase: 'step-done', campaignId: c.id, step: d.step, agentId: d.agentId, file: d.file, camp: c }); }
-    }
-    c.step = Math.max(c.step, summary.steps.length);
-  };
-  if (sc) { settle(sc); return; } // hələ gedir: yalnız buraxılmış addımları əlavə et
-  // kampaniya snapshot-da yoxdur: ya bitib, ya da dayanıb — dəqiq vəziyyəti soruşuruq
+  if (!c || c.ended) return;
+  if (sc) { // hələ gedir: buraxılmış keçidləri əlavə et
+    syncSteps(c, sc);
+    if (c.status !== sc.status) { c.status = sc.status; if (sc.status === 'awaiting') fire('campaign', { type: 'campaign', phase: 'awaiting', campaignId: c.id, camp: c, synced: true }); }
+    return;
+  }
+  // kampaniya snapshot-da yoxdur: bitib, dayanıb və ya server yenidən başlayıb — dəqiq vəziyyəti soruşuruq
   live.campaigns().then(list => {
-    if (c.done || live.camp !== c) return;
+    if (c.ended || live.camp !== c) return;
     const s = list.find(x => x.id === c.id);
-    if (s) settle(s);
-    c.done = true;
-    if (s?.status === 'done') { c.file = s.file; fire('campaign', { type: 'campaign', phase: 'done', campaignId: c.id, name: c.name, file: s.file, camp: c }); }
-    else {
-      c.error = s?.error || 'Server yenidən başladı — kampaniya yarımçıq qaldı';
-      fire('campaign', { type: 'campaign', phase: 'error', campaignId: c.id, error: c.error, camp: c });
-    }
+    if (s) syncSteps(c, s);
+    if (s && ENDED.includes(s.status)) endCamp(c, s.status, { file: s.file, error: s.error });
+    else endCamp(c, 'interrupted', { error: 'Server yenidən başladı — kampaniya yarımçıq qaldı' });
   }).catch(() => {});
 }
 
@@ -122,14 +139,23 @@ live.init = async () => {
       fire('job', { ...ev, job: j });
     }
     if (ev.type === 'campaign') {
-      if (ev.phase === 'start') live.camp = campFrom(ev.campaignId, ev.name, ev.done);
+      if (ev.phase === 'start' || ev.phase === 'resume') live.camp = campFrom(ev.snapshot);
       const c = live.camp; if (!c || c.id !== ev.campaignId) return;
-      if (ev.step != null) { c.step = ev.step; c.steps[ev.step] ||= { chars: 0, tail: '', done: false }; }
       const s = ev.step != null ? c.steps[ev.step] : null;
-      if (ev.phase === 'delta') { s.chars = ev.chars; s.tail = ev.tail; }
-      if (ev.phase === 'step-done') { s.done = true; s.output = ev.output; s.file = ev.file; }
-      if (ev.phase === 'done') { c.done = true; c.file = ev.file; }
-      if (ev.phase === 'error') { c.done = true; c.error = ev.error; }
+      switch (ev.phase) {
+        case 'step-start': s.status = 'running'; s.chars = 0; s.tail = ''; s.review = null; c.status = 'running'; break;
+        case 'delta': s.chars = ev.chars; s.tail = ev.tail; break;
+        case 'step-review': s.status = 'review'; break;
+        case 'step-reviewed': s.review = { ok: ev.ok, forced: ev.forced, note: ev.note }; if (!ev.ok || ev.forced) s.notes.push({ by: 'cmo', note: ev.note, accepted: ev.forced }); break;
+        case 'step-awaiting': s.status = 'awaiting'; s.file = ev.file; break;
+        case 'step-revise': s.status = 'pending'; s.notes.push({ by: 'boss', note: ev.note }); c.status = 'running'; break;
+        case 'step-done': s.status = 'done'; s.file = ev.file; break;
+        case 'awaiting': c.status = 'awaiting'; break;
+        case 'done': c.status = 'done'; c.ended = true; c.file = ev.file; break;
+        // dayandırılanda yarımçıq addımlar serverdə pending-ə qayıdır (ayrıca hadisəsiz)
+        case 'paused': c.status = 'paused'; c.ended = true; c.error = ev.error; c.steps.forEach(x => { if (['running', 'review'].includes(x.status)) x.status = 'pending'; }); break;
+        case 'error': c.status = 'error'; c.ended = true; c.error = ev.error; if (s && s.status !== 'done') s.status = 'error'; break;
+      }
       fire('campaign', { ...ev, camp: c });
     }
   };

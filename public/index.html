@@ -48,6 +48,19 @@
   .ps{font-size:11px;padding:3px 8px;border-radius:999px;background:#f1eef7;color:var(--mute);white-space:nowrap}
   .ps.act{background:#fff1ec;color:#d9481f;box-shadow:inset 0 0 0 1.5px #ff9c7d;animation:pulse 1.2s infinite}
   .ps.done{background:#e9fbf1;color:#15803d}
+  .ps.wait{background:#fff7e0;color:#a16207;box-shadow:inset 0 0 0 1.5px #f5c84c}
+  .ps.err{background:#fdecec;color:#b42318}
+  .ps i{font-style:normal;opacity:.7}
+  #pipeTitle b small{font-weight:600;color:var(--mute)}
+  #pipeTitle .pbtns{display:flex;gap:4px;margin-left:auto}
+  .pbtn{font-size:11px;font-weight:700;padding:3px 9px;border-radius:8px;background:#fff;border:1px solid var(--line);color:var(--ink);cursor:pointer}
+  .pbtn:hover{background:#f6f4fb}
+  #pipeAct:empty{display:none}
+  #pipeAct{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+  .pact{font-size:12px;padding:8px 10px;border-radius:10px;background:#fffaf0;border:1px solid #f3dfae}
+  .pact .prow{display:flex;gap:6px;margin-top:6px}
+  .pact input{flex:1;min-width:0;font-size:12px;padding:5px 8px;border-radius:8px;border:1px solid var(--line)}
+  .cauto{display:flex;gap:6px;align-items:center;margin-top:8px;cursor:pointer}
   @keyframes pulse{50%{box-shadow:inset 0 0 0 1.5px #ffc2ae,0 0 0 4px rgba(255,122,89,.15)}}
 
   /* aşağı: idarə paneli (dock) */
@@ -187,7 +200,7 @@
   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span id="liveBadge" class="chip">⚪ <b>Simulyasiya</b></span><div id="stats"></div></div>
 </div>
 
-<div id="pipe" class="glass hidden"><div id="pipeTitle"></div><div id="pipeSteps"></div></div>
+<div id="pipe" class="glass hidden"><div id="pipeTitle"></div><div id="pipeSteps"></div><div id="pipeAct"></div></div>
 
 <div id="panel" class="glass"><div class="ph"><b>👥 Komanda</b><span id="teamCount"></span></div><div id="team"></div></div>
 <div id="sheet" class="glass"></div>
@@ -198,7 +211,8 @@
 <div id="campPop" class="pop glass">
   <h4>🚀 Yeni kampaniya</h4>
   <form id="campForm"><input id="campName" placeholder="Kampaniya adı (məs: Novruz 2027)" autocomplete="off"><button class="btn primary">Başlat</button></form>
-  <div class="hint2" style="margin-top:7px">13 nəfər növbə ilə işləyəcək — hər biri əvvəlkinin nəticəsini alıb öz hissəsini yazır.</div>
+  <label class="hint2 cauto"><input type="checkbox" id="campAuto"> Avto (təsdiqsiz): brif və konsepsiyanı mən təsdiqləməyim</label>
+  <div class="hint2" style="margin-top:7px">13 nəfər işləyir: asılı olmayan addımlar paralel gedir, Elvin əsas işləri yoxlayır, brif və konsepsiya sizin təsdiqinizi gözləyir.</div>
 </div>
 <div id="outPop" class="pop glass"><div id="outList"><h4>📂 Hazır işlər</h4><div id="outItems"></div></div></div>
 
@@ -1496,93 +1510,198 @@ async function callMeeting() {
   await gsleep(1); meeting = null;
 }
 
-let campaign = null;
+// UI tərəfdə göstərilən kampaniya. Canlı rejimdə vəziyyət live.camp-dadır (server idarə edir),
+// simulyasiyada isə yalnız campaign.step var.
+let campaign = null; // { id, name } (canlı) | { name, step, sim: true }
 const pipeEl = document.getElementById('pipe');
+const C = () => (campaign?.id && live.camp?.id === campaign.id ? live.camp : null);
+const stepAgent = i => byId(PIPE[i].id);
+const resumeLink = (id, name) => `<span class="flink" data-resume="${esc(id)}" data-name="${esc(name)}">↻ davam et</span>`;
+const CHIP = { // addım statusu → [css sinfi, nişan]
+  pending: ['', null], running: ['act', null], review: ['act', '🔎'], awaiting: ['wait', '⏳'], done: ['done', '✓'], error: ['err', '⚠️'],
+};
+
+function pipeHeadline(c) {
+  const ok = c.steps.filter(s => s.status === 'done').length;
+  if (c.status === 'done') return '🎉 Hazırdır!';
+  if (c.status === 'paused') return `⏸ Dayandırıldı · ${ok}/${PIPE.length}`;
+  if (c.status === 'error' || c.status === 'interrupted') return `⚠️ Dayandı · ${ok}/${PIPE.length}`;
+  if (c.steps.some(s => s.status === 'awaiting')) return `⏳ Təsdiqinizi gözləyir · ${ok}/${PIPE.length}`;
+  return `${ok}/${PIPE.length} hazır`;
+}
+
+let actKey = '';
 function renderPipe() {
-  if (!campaign) { pipeEl.classList.add('hidden'); return; }
+  if (!campaign) { pipeEl.classList.add('hidden'); actKey = ''; document.getElementById('pipeAct').innerHTML = ''; return; }
   pipeEl.classList.remove('hidden');
-  const done = campaign.step >= PIPE.length;
-  document.getElementById('pipeTitle').innerHTML = `🚀 «${esc(campaign.name)}» <span>${done ? (live.on ? '🎉 Hazırdır!' : '🎉 Yayımlandı!') : `Addım ${campaign.step + 1}/${PIPE.length}`}</span>`;
-  document.getElementById('pipeSteps').innerHTML = PIPE.map((s, i) => {
-    const a = byId(s.id); const cls = i < campaign.step ? 'done' : i === campaign.step ? 'act' : '';
-    return `<span class="ps ${cls}">${i < campaign.step ? '✓' : a.def.emoji} ${esc(a.def.name)} · ${esc(s.task)}</span>`;
+  const c = C();
+  if (!c) { // simulyasiya
+    const done = campaign.step >= PIPE.length;
+    document.getElementById('pipeTitle').innerHTML = `🚀 «${esc(campaign.name)}» <span>${done ? '🎉 Yayımlandı!' : `Addım ${campaign.step + 1}/${PIPE.length}`}</span>`;
+    document.getElementById('pipeSteps').innerHTML = PIPE.map((s, i) => {
+      const a = byId(s.id); const cls = i < campaign.step ? 'done' : i === campaign.step ? 'act' : '';
+      return `<span class="ps ${cls}">${i < campaign.step ? '✓' : a.def.emoji} ${esc(a.def.name)} · ${esc(s.task)}</span>`;
+    }).join('');
+    return;
+  }
+  const btn = c.ended
+    ? `${c.status !== 'done' ? `<button class="pbtn" data-pact="resume">↻ Davam et</button>` : ''}<button class="pbtn" data-pact="close" title="Bağla">✕</button>`
+    : `<button class="pbtn" data-pact="pause">⏸ Dayandır</button>`;
+  document.getElementById('pipeTitle').innerHTML = `<b>🚀 «${esc(c.name)}»${c.auto ? ' <small>avto</small>' : ''}</b><span>${pipeHeadline(c)}</span><span class="pbtns">${btn}</span>`;
+  document.getElementById('pipeSteps').innerHTML = c.steps.map((s, i) => {
+    const a = stepAgent(i), [cls, mark] = CHIP[s.status] || CHIP.pending;
+    const title = s.notes.length ? ` title="${esc(s.notes.map(n => `${n.by === 'boss' ? WORLD.boss : byId('cmo').def.name}: ${n.note}`).join('\n'))}"` : '';
+    return `<span class="ps ${cls}"${title}>${mark || a.def.emoji} ${esc(a.def.name)} · ${esc(PIPE[i].task)}${s.notes.length ? ` <i>↩${s.notes.length}</i>` : ''}</span>`;
+  }).join('');
+  // təsdiq gözləyən addımlar: forma yalnız siyahı dəyişəndə yenidən çəkilir ki, yazılan qeyd itməsin
+  const waiting = c.ended ? [] : c.steps.map((s, i) => (s.status === 'awaiting' ? i : null)).filter(i => i != null);
+  const key = c.id + ':' + waiting.join(',');
+  if (key === actKey) return;
+  actKey = key;
+  document.getElementById('pipeAct').innerHTML = waiting.map(i => {
+    const a = stepAgent(i), s = c.steps[i];
+    return `<form class="pact" data-step="${i}">
+      <div><b>${esc(a.def.name)}</b>: «${esc(PIPE[i].out)}» təsdiqinizi gözləyir ${s.file ? fileLink(s.file, `${a.def.name}: ${PIPE[i].task}`) : ''}</div>
+      <div class="prow"><button type="button" class="btn primary" data-pact="approve">✓ Təsdiqlə</button>
+      <input name="note" placeholder="Nəyi dəyişsin? (məs: büdcəni 30% azalt)" maxlength="600" autocomplete="off">
+      <button class="btn" data-pact="revise">✎ Düzəliş istə</button></div></form>`;
   }).join('');
 }
-// Canlı rejim: hər addım real Claude agentidir, əvvəlki addımın nəticəsi növbətiyə ötürülür.
-async function startCampaignLive(name) {
-  if (campaign) { toast('🚀 Bir kampaniya artıq gedir'); return; }
-  let cid;
-  try { ({ campaignId: cid } = await live.campaign(name)); } catch (e) { toast('⚠️ ' + e.message); return; }
-  log(null, `🚀 <b>«${esc(name)}»</b> kampaniyası başladı — ${live.mode === 'live' ? 'real agentlər işləyir' : 'demo'}`);
-  return followCampaign(cid, name, 0);
+
+// pipe paneli düymələri
+pipeEl.addEventListener('click', async e => {
+  const b = e.target.closest('[data-pact]'); if (!b) return;
+  e.preventDefault();
+  const c = C(); if (!c) return;
+  const act = b.dataset.pact, form = b.closest('.pact'), step = form ? +form.dataset.step : null;
+  try {
+    if (act === 'pause') { await live.pause(c.id); toast('⏸ Kampaniya dayandırılır…'); }
+    if (act === 'resume') await resumeCampaignLive(c.id, c.name);
+    if (act === 'close') { campaign = null; renderPipe(); }
+    if (act === 'approve') { b.disabled = true; await live.approve(c.id, step); log(null, `✓ Siz «${esc(PIPE[step].out)}» işini təsdiqlədiniz`); }
+    if (act === 'revise') {
+      const note = form.note.value.trim();
+      if (note.length < 2) { form.note.focus(); toast('✎ Nəyi dəyişmək lazım olduğunu yazın'); return; }
+      b.disabled = true; await live.revise(c.id, step, note);
+    }
+  } catch (err) { b.disabled = false; toast('⚠️ ' + err.message); }
+});
+pipeEl.addEventListener('submit', e => { e.preventDefault(); e.target.querySelector('[data-pact="revise"]')?.click(); });
+
+async function startCampaignLive(name, auto) {
+  if (C() && !C().ended) { toast('🚀 Bir kampaniya artıq gedir'); return; }
+  try { await live.campaign(name, auto); } catch (e) { toast('⚠️ ' + e.message); return; }
+  log(null, `🚀 <b>«${esc(name)}»</b> kampaniyası başladı — ${live.mode === 'live' ? 'real agentlər işləyir' : 'demo'}${auto ? ' (avto, təsdiqsiz)' : ''}`);
 }
-// Yarımçıq kampaniyanı qaldığı addımdan davam etdirir.
 async function resumeCampaignLive(cid, name) {
-  if (campaign) { toast('🚀 Bir kampaniya artıq gedir'); return; }
-  let from;
-  try { ({ from } = await live.resume(cid)); } catch (e) { toast('⚠️ ' + e.message); return; }
-  log(null, `↻ <b>«${esc(name)}»</b> ${from + 1}-ci addımdan davam edir`);
-  return followCampaign(cid, name, from);
+  if (C() && !C().ended && C().id !== cid) { toast('🚀 Bir kampaniya artıq gedir'); return; }
+  try { await live.resume(cid); } catch (e) { toast('⚠️ ' + e.message); return; }
+  log(null, `↻ <b>«${esc(name)}»</b> qaldığı yerdən davam edir`);
 }
-const resumeLink = (id, name) => `<span class="flink" data-resume="${esc(id)}" data-name="${esc(name)}">↻ davam et</span>`;
 document.addEventListener('click', e => { const l = e.target.closest('[data-resume]'); if (l) { e.preventDefault(); resumeCampaignLive(l.dataset.resume, l.dataset.name); } });
-// Serverdəki kampaniyanı izləyir: from-dan əvvəlki addımlar artıq hazırdır.
-async function followCampaign(cid, name, from) {
-  if (campaign) return;
-  campaign = { name, step: from }; renderPipe();
-  const C = () => (live.camp && live.camp.id === cid ? live.camp : null);
-  const stepOf = i => C()?.steps[i];
-  for (let i = from; i < PIPE.length; i++) {
-    if (C()?.error) break;
-    campaign.step = i; renderPipe();
-    const st = PIPE[i], a = byId(st.id);
-    const nx = i + 1 < PIPE.length ? byId(PIPE[i + 1].id) : byId('cmo');
-    await a.run(async () => {
-      a.task = `${st.task} («${name}»)`; a.say(`🚀 ${st.task}`);
+
+// Addımın animasiyası: personaj masasında yazır, CMO yoxlayır, təsdiq gözləyir, sonra işi növbətiyə təhvil verir.
+const animating = new Map(); // addım → token (yeni animasiya köhnəni əvəz edir)
+function animateStep(i, restart = false) {
+  const c = C(); if (!c || (!restart && animating.has(i))) return;
+  const token = {};
+  const st = PIPE[i], a = stepAgent(i), s = () => C()?.steps[i];
+  const busy = () => ['running', 'review'].includes(s()?.status);
+  animating.set(i, token);
+  a.run(async () => {
+    try {
+      const fix = s().notes.length > 0;
+      a.task = `${st.task} («${c.name}»)`; a.say(`${fix ? '✏️ Düzəldirəm:' : '🚀'} ${st.task}`);
       if (!a.atHome()) { await a.goHome(); a.say(`🚀 ${st.task}`); }
       a.status = 'campaign'; a.anim = 'type';
-      try {
-        while (!stepOf(i)?.done && !C()?.error) {
-          const s = stepOf(i); a.liveProg = s ? Math.min(0.95, 0.04 + s.chars / 1800) : 0.04;
-          if (s?.tail) a.say('✍️ …' + s.tail.replace(/\s+/g, ' ').slice(-70));
-          await a.sleep(0.4);
-        }
-      } finally { a.liveProg = null; }
-      if (C()?.error) { a.anim = 'idle'; a.say('⚠️ Addım alınmadı'); await a.sleep(3); return; }
-      a.completed(`${st.task} — «${name}»`, false, stepOf(i).file);
-      if (nx !== a) {
-        if (i + 1 < PIPE.length) nx.run(async () => {
-          if (!nx.atHome()) await nx.goHome();
-          nx.status = 'campaign'; nx.anim = 'idle'; nx.say('⏳ Təhvil gözləyir…');
-          await nx.sleep(9999);
-        }, 'campaign');
+      while (busy()) {
+        const x = s();
+        if (x.status === 'review') { a.liveProg = 0.97; a.anim = 'idle'; a.say(`🔎 ${byId('cmo').def.name} yoxlayır…`); }
+        else { a.anim = 'type'; a.liveProg = Math.min(0.95, 0.04 + x.chars / 1800); if (x.tail) a.say('✍️ …' + x.tail.replace(/\s+/g, ' ').slice(-70)); }
+        await a.sleep(0.4);
+      }
+      a.liveProg = null;
+      if (s()?.status === 'awaiting') {
+        a.anim = 'idle'; a.say(`⏳ ${WORLD.boss}in təsdiqini gözləyir`);
+        while (s()?.status === 'awaiting' && !C()?.ended) await a.sleep(0.5);
+      }
+      if (s()?.status !== 'done') { a.anim = 'idle'; if (s()?.status === 'error') { a.say('⚠️ Addım alınmadı'); await a.sleep(3); } return; }
+      handOff(a, i);
+      // işi asılı olan birinci addımın sahibinə aparır
+      const nx = PIPE.map((p, k) => (p.after.includes(st.id) ? stepAgent(k) : null)).find(b => b && b !== a);
+      if (nx) {
         const sp = sideSpot(nx);
         await a.walkTo(sp.x, sp.z, sp.rot);
         a.anim = 'talk'; a.say(`📦 ${st.out} hazırdır!`);
-        nx.flash(i + 1 < PIPE.length ? '👍 Qəbul etdim, başlayıram!' : '🎉 Əla iş, komanda!', 3);
+        nx.flash('👍 Qəbul etdim!', 3);
         await a.sleep(2.6);
       }
-    }, 'campaign');
-    // personaj kəsilsə belə (görüş və s.), növbəti addıma server bitirəndən sonra keçirik
-    while (!stepOf(i)?.done && !C()?.error) await gsleep(0.4);
-  }
-  if (C()?.error) {
-    log(null, `⚠️ <b>«${esc(name)}»</b> dayandı: ${esc(C().error)} ${resumeLink(cid, name)}`); toast('⚠️ Kampaniya dayandı');
-    await gsleep(4); campaign = null; renderPipe(); return;
-  }
-  while (!C()?.done) await gsleep(0.4);
-  campaign.step = PIPE.length; renderPipe();
-  for (let k = 0; k < 4; k++) tickKPI(1);
-  log(null, `🎉 <b>«${esc(name)}»</b> hazırdır! ${fileLink(C().file, `Kampaniya: ${name}`)}`);
-  toast(`🎉 «${name}» kampaniyası hazırdır!`);
-  AGENTS.forEach(a => { if (a.mode === 'free') a.flash(pick(['🎉', '🥳 Bravo!', '🙌', '🚀 Uğurlar!']), 2.5); });
-  await gsleep(8); campaign = null; renderPipe();
+    } finally { if (animating.get(i) === token) { a.liveProg = null; animating.delete(i); } }
+  }, 'campaign');
+}
+// addım bitdi: tarixçəyə yaz (animasiya olmasa da, məs. səhifə sonradan qoşulanda)
+const handed = new Set();
+function handOff(a, i) {
+  const c = C(), key = `${c.id}:${i}`; if (handed.has(key)) return; handed.add(key);
+  a.completed(`${PIPE[i].task} — «${c.name}»`, false, c.steps[i].file);
 }
 
-async function startCampaign(name) {
-  if (live.on) return startCampaignLive(name);
+// CMO yoxlayır: işin müəllifinin masasına gedir, nəticəni deyir.
+function animateReview(i) {
+  const cmo = byId('cmo'), a = stepAgent(i);
+  cmo.run(async () => {
+    const sp = sideSpot(a);
+    await cmo.walkTo(sp.x, sp.z, sp.rot);
+    cmo.status = 'campaign'; cmo.anim = 'think'; cmo.say(`🔎 ${PIPE[i].out}…`);
+    while (C()?.steps[i]?.status === 'review') await cmo.sleep(0.4);
+    const r = C()?.steps[i]?.review;
+    if (r) { cmo.anim = 'talk'; cmo.say(r.ok ? (r.forced ? '🤝 Tam deyil, amma qəbul edirəm' : '👍 Qəbul!') : `↩️ ${r.note.slice(0, 80)}`); }
+    await cmo.sleep(r && !r.ok ? 4 : 2.2);
+  }, 'campaign');
+}
+
+live.sub('campaign', ev => {
+  const { phase, camp: c } = ev;
+  if (phase === 'start' || phase === 'resume' || phase === 'rejoin') {
+    if (campaign?.sim) return;
+    campaign = { id: c.id, name: c.name };
+    if (phase === 'rejoin') log(null, `🔄 <b>«${esc(c.name)}»</b> kampaniyası gedir — izləyirik`);
+    c.steps.forEach((s, i) => { if (['running', 'review', 'awaiting'].includes(s.status)) animateStep(i); if (s.status === 'review') animateReview(i); });
+    renderPipe(); return;
+  }
+  if (!campaign || campaign.id !== ev.campaignId) return;
+  const i = ev.step, a = i != null ? stepAgent(i) : null;
+  switch (phase) {
+    case 'step-start': animateStep(i, true); break;
+    case 'step-review': animateReview(i); break;
+    case 'step-reviewed':
+      if (!ev.ok) { log(byId('cmo'), `“${esc(PIPE[i].out)}” işini ${esc(a.def.name)}-a geri qaytardı: <i>${esc(ev.note)}</i>`); a.flash('😅 Düzəldirəm!', 3); }
+      else if (ev.forced) log(byId('cmo'), `“${esc(PIPE[i].out)}” işini qeydlə qəbul etdi: <i>${esc(ev.note)}</i>`);
+      break;
+    case 'step-awaiting':
+      animateStep(i);
+      log(a, `“${esc(PIPE[i].out)}” hazırdır — <b>təsdiqinizi gözləyir</b> ${fileLink(ev.file || c.steps[i].file, `${a.def.name}: ${PIPE[i].task}`)}`);
+      toast(`⏳ «${PIPE[i].out}» təsdiqinizi gözləyir`);
+      break;
+    case 'step-revise': log(null, `✎ «${esc(PIPE[i].out)}» üçün düzəliş istədiniz (${esc(a.def.name)}): <i>${esc(ev.note)}</i>`); break;
+    case 'step-done': if (!animating.has(i)) handOff(a, i); break;
+    case 'done':
+      log(null, `🎉 <b>«${esc(c.name)}»</b> hazırdır! ${fileLink(c.file, `Kampaniya: ${c.name}`)}`);
+      toast(`🎉 «${c.name}» kampaniyası hazırdır!`);
+      for (let k = 0; k < 4; k++) tickKPI(1);
+      AGENTS.forEach(x => { if (x.mode === 'free') x.flash(pick(['🎉', '🥳 Bravo!', '🙌', '🚀 Uğurlar!']), 2.5); });
+      setTimeout(() => { if (campaign?.id === c.id && C()?.ended) { campaign = null; renderPipe(); } }, 10000);
+      break;
+    case 'paused': log(null, `⏸ <b>«${esc(c.name)}»</b> dayandırıldı. ${resumeLink(c.id, c.name)}`); break;
+    case 'error': log(null, `⚠️ <b>«${esc(c.name)}»</b> dayandı: ${esc(c.error || ev.error)} ${resumeLink(c.id, c.name)}`); toast('⚠️ Kampaniya dayandı'); break;
+  }
+  if (phase !== 'delta') renderPipe();
+});
+
+async function startCampaign(name, auto = false) {
+  if (live.on) return startCampaignLive(name, auto);
   if (campaign) { toast('🚀 Bir kampaniya artıq gedir'); return; }
-  campaign = { name, step: 0 }; renderPipe();
+  campaign = { name, step: 0, sim: true }; renderPipe();
   log(null, `🚀 <b>«${esc(name)}»</b> kampaniyası başladı — brif CMO-ya gedir`);
   for (let i = 0; i < PIPE.length; i++) {
     campaign.step = i; renderPipe();
@@ -1708,7 +1827,7 @@ document.getElementById('btnNames').onclick = e => { const on = document.body.cl
 document.getElementById('btnCam').onclick = () => { viewIdx = (viewIdx + 1) % VIEWS.length; const v = VIEWS[viewIdx]; follow = false; tweenCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t)); };
 document.getElementById('campForm').onsubmit = e => {
   e.preventDefault(); const i = document.getElementById('campName');
-  startCampaign(i.value.trim() || pick(['Novruz 2027', 'Yeni il endirimi', 'Black Friday', 'Yay kolleksiyası', 'Brend relaunch'])); i.value = '';
+  startCampaign(i.value.trim() || pick(['Novruz 2027', 'Yeni il endirimi', 'Black Friday', 'Yay kolleksiyası', 'Brend relaunch']), document.getElementById('campAuto').checked); i.value = '';
   togglePop('campPop', 'btnCamp', false);
 };
 document.getElementById('btnTeam').onclick = () => setPanel(!panelEl.classList.contains('open'));
@@ -1743,19 +1862,13 @@ for (const a of AGENTS) {
   }, 'free');
 }
 log(null, `🛗 ${WORLD.lift}in qapısı açıldı — komanda masalarına keçdi. Bayırdakı həyat qapının o tayında qaldı.`);
-// səhifə yenilənəndə server hələ kampaniya aparırsa, animasiyaya qoşul
-live.sub('campaign', ({ phase, campaignId, name, from }) => {
-  if (phase !== 'rejoin' || campaign) return;
-  log(null, `🔄 <b>«${esc(name)}»</b> kampaniyası gedir — ${from + 1}-ci addımdan izləyirik`);
-  followCampaign(campaignId, name, from);
-});
 live.init().then(async () => {
   if (live.mode === 'live') log(null, '🟢 Canlı rejim: tapşırıqlar real Claude agentlərinə gedir');
   else if (live.mode === 'mock') log(null, '🟡 Demo rejim: server işləyir, amma Claude-a giriş yoxdur');
   if (!live.on) return;
   const last = (await live.campaigns().catch(() => []))[0];
-  if (last && ['interrupted', 'error'].includes(last.status))
-    log(null, `⏸ <b>«${esc(last.name)}»</b> ${last.steps.length}/${last.total} addımda yarımçıq qalıb. ${resumeLink(last.id, last.name)}`);
+  if (last && ['interrupted', 'error', 'paused'].includes(last.status))
+    log(null, `⏸ <b>«${esc(last.name)}»</b> ${last.done}/${last.total} addımda yarımçıq qalıb. ${resumeLink(last.id, last.name)}`);
 });
 
 const clock = new THREE.Clock();

@@ -29,9 +29,12 @@ Layihə iki hissədən ibarətdir: brauzerdə işləyən 3D ofis və onu dil mod
 | `/api/events` | GET (SSE) | tapşırıq və kampaniya hadisələri: `start`, `delta`, `done`, `error`, `step-*` |
 | `/api/chat` | POST | `{agentId, message, history, activity}` → mətn axını (chunked) |
 | `/api/task` | POST | `{agentId, text}` → `{jobId}`; nəticə SSE ilə gəlir |
-| `/api/campaign` | POST | `{name}` → `{campaignId}`; 13 addım ardıcıl |
-| `/api/campaign/resume` | POST | `{campaignId}` → `{campaignId, from}`; yarımçıq və ya xəta ilə dayanmış kampaniyanı qaldığı addımdan davam etdirir |
-| `/api/campaigns` | GET | son 50 kampaniya: status (`running`, `done`, `error`, `interrupted`), addımlar, fayllar |
+| `/api/campaign` | POST | `{name, auto?}` → `{campaignId}`; 13 addım asılılıqlara görə (bax: Kampaniya axını). `auto: true` Rəhbərin təsdiqini ötürür |
+| `/api/campaign/approve` | POST | `{campaignId, step}`: təsdiq gözləyən addımı qəbul edir |
+| `/api/campaign/revise` | POST | `{campaignId, step, note}`: təsdiq gözləyən addımı qeydlə yenidən yazdırır |
+| `/api/campaign/pause` | POST | `{campaignId}`: gedən addımları dayandırır (Claude prosesi öldürülür), kampaniya `paused` olur |
+| `/api/campaign/resume` | POST | `{campaignId}`: `paused`, `error` və ya `interrupted` kampaniyanı qaldığı yerdən davam etdirir |
+| `/api/campaigns` | GET | son 50 kampaniya: status, hər addımın statusu, faylı və qeydləri |
 | `/api/agent?id=` | GET | personajın son xatirələri və sayı |
 | `/api/outputs` | GET | hazır işlərin siyahısı |
 | `/api/output?f=` | GET | bir nəticə faylı (yalnız `outputs/*.md`) |
@@ -63,9 +66,23 @@ claude -p "<prompt>" --output-format stream-json --verbose --include-partial-mes
 - `outputs/kampaniyalar/<tarix>_<ad>/NN-<agent>.md` və `00-tam-kampaniya.md`
 - `outputs/kampaniyalar/<tarix>_<ad>/state.json`: kampaniyanın vəziyyəti, hər addımdan sonra yazılır
 
+## Kampaniya axını
+
+`public/team.js` → `PIPE`. Hər addımın sahəsi:
+
+- `after`: hansı addımların nəticəsini gözləyir. Asılılıqları hazır olan addımlar **paralel** başlayır (eyni anda ən çox `MAX_PARALLEL` Claude prosesi). Addımın prompt-una bütün əcdadlarının nəticəsi daxil olur.
+- `review`: Elvin (CMO) nəticəni yoxlayır (`CHAT_MODEL`, cavabın ilk sətri `QƏBUL` və ya `GERİ`). Bəyənməsə, qeydi ilə bir dəfə geri qaytarır; düzəldilmiş variantı yenə yoxlayır, amma ikinci dəfə qaytarmır, qeydlə qəbul edir.
+- `gate`: nəticə Rəhbərin (sizin) təsdiqini gözləyir: **Təsdiqlə** və ya qeydlə **Düzəliş istə**. Ondan asılı addımlar təsdiqə qədər başlamır. İndi brif (`cmo`) və konsepsiya (`artdir`).
+
+Addım statusu: `pending → running → review → awaiting → done` (və ya `error`). Kampaniya statusu: `running`, `awaiting` (heç nə getmir, təsdiq gözlənilir), `done`, `paused`, `error`, `interrupted`. Eyni anda bir aktiv (`running` və ya `awaiting`) kampaniya ola bilər.
+
+SSE hadisələri (`type: 'campaign'`): `start`, `resume` (hər ikisi `snapshot` ilə), `step-start`, `delta`, `step-retry`, `step-review`, `step-reviewed` (`ok`, `forced`, `note`), `step-awaiting`, `step-approved`, `step-revise`, `step-done`, `awaiting`, `paused`, `error`, `done`.
+
+Demo rejimdə Elvin kopirayterin ilk variantını həmişə geri qaytarır ki, bu axın görünsün.
+
 ## Etibarlılıq
 
-- Kampaniyanın vəziyyəti diskdə saxlanılır. Server dayansa, açılışda yarımçıq kampaniya `interrupted` olur; ofisin lentində **↻ davam et** linki çıxır və iş qaldığı addımdan davam edir.
+- Kampaniyanın vəziyyəti diskdə saxlanılır. Server dayansa, açılışda gedən kampaniya `interrupted` olur, yarımçıq addımlar `pending`-ə qayıdır; ofisin lentində **↻ davam et** linki çıxır. Yalnız təsdiq gözləyən kampaniya isə `awaiting` qalır.
 - Addım alınmasa bir dəfə də yoxlanılır (`step-retry` hadisəsi), sonra kampaniya `error` ilə dayanır və yenə davam etdirilə bilər.
 - SSE-nin `hello` hadisəsi gedən kampaniyanı və tapşırıqları da göndərir: səhifəni yeniləyəndə animasiya gedən kampaniyaya qoşulur.
 
