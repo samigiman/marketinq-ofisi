@@ -11,3 +11,5 @@ yaddas/
 .agents/
 .mcp.json
 CLAUDE.md
+.qa/
+assets-src/

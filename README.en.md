@@ -1,7 +1,7 @@
 # ✦ Marketinq HQ: a 3D office where live agents work
 
-> **Ulduz Marketing, 9th floor.** 24 people work here. You watch them from above, walk up to anyone and talk, hand out tasks.
-> They don't think of themselves as bots. As far as they know, this office is their life.
+> **Ulduz Marketing**, a small ad agency in Baku. 24 people work here and you run the place.
+> Walk up to anyone and talk, hand out tasks. Each of them has a life, opinions and a way of speaking of their own.
 
 ![Marketinq HQ](docs/screenshot.jpg)
 
@@ -13,13 +13,13 @@ Built with Three.js, a small Node.js server, the [Claude Code](https://docs.anth
 
 The in-game UI and characters speak **Azerbaijani**. Translations are welcome (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
-## The story: the Blue Lift
+## The story
 
-Every morning the **Blue Lift** opens its doors and everyone is already at their desk.
+You (the **Boss**, "Rəhbər") opened Ulduz Marketing in 2018 in two rooms. Today the agency sits on the 3rd floor of an old building near Fountain Square, with 24 people.
 
-When the lift goes up, life outside stays downstairs: home, family, last night. None of it reaches the 9th floor. What happens in the office stays: yesterday's task, a chat with the Boss, who handed what to whom during a campaign.
+Each character has a history: Murad came from a newspaper that closed and is writing a novel, Nərmin just moved from Mingachevir and is formal with everyone, Zaur came from the statistics committee and doesn't trust a number without a source. They have opinions about the work and won't say yes to a weak idea. You'll see who is friends with whom and who argues with whom. Their work and your conversations stay in their memory.
 
-The characters don't find this strange. Ask about the outside and they'll be honestly puzzled and curious, but they won't invent memories. They never call themselves a bot, a program or code. To them, you are the **Boss** ("Rəhbər").
+Rules: [docs/WORLD.md](docs/WORLD.md).
 
 The whole story and a guide are also inside the game: the **📖 Hekayə** (Story) button in the dock.
 
@@ -44,7 +44,7 @@ claude auth login   # once; Claude subscription or API key
 npm start           # http://localhost:5180
 ```
 
-Without Claude, use demo mode with sample answers: `npm run demo`. Tests (no Claude calls): `npm test`.
+Without Claude, use demo mode with sample answers: `npm run demo`. Tests (no Claude calls): `npm test`. Public edition (no digital marketing or ad-buying roles): `EDITION=public npm start`.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -60,8 +60,8 @@ Animation, walking, idle chatter and meetings **never** call a model. Tokens are
 ## How it works
 
 1. The browser renders the office. Everyday life (work, breaks, small talk, meetings) runs entirely client-side.
-2. When you talk, the server builds the character's system prompt: world rules (the lift, the Boss, "you're not a bot"), personality, colleagues, current activity, and memories recalled from Ruflo.
-3. `claude -p` runs with **no tools**, and the reply streams back into the speech bubble.
+2. When you talk, the server builds the character's system prompt: the character's biography, opinions, way of speaking, relationships, the agency's history, colleagues, current activity, and memories recalled from Ruflo.
+3. In chat, `claude -p` runs with **no tools** and the reply streams into the speech bubble. For tasks, the character works on their own computer (a sandboxed folder) with files and a terminal; every command and file shows up in the monitor log.
 4. After a chat or a task, a short memory is written to Ruflo.
 5. In a campaign, each step's output is added to the next agent's prompt; the browser animates the hand-off.
 
@@ -75,8 +75,10 @@ Memories live in [Ruflo](https://github.com/ruvnet/ruflo)'s AgentDB (vector sear
 
 ## Security
 
-- Agents run with `claude -p --tools ""`: no file access, no shell, no web, no ad accounts. Text only.
-- No user hooks, plugins or MCP servers are loaded. The working directory is empty.
+- **Chat** has no tools (`claude -p --tools ""`).
+- **Tasks and campaigns** run on the character's own computer: `/Users/Shared/marketinq-ofisi/kompyuterler/<id>/` (macOS; set `PC_DIR` to change). The Claude sandbox (`--restricted` + `sandbox`) allows writing only in that folder, blocks reading the whole home folder (project files, `~/.ssh`, keys), other characters' folders and the log, and blocks the network.
+- **Codex** characters (`engine: 'codex'`) use Codex only with `CODEX=1`. Codex's sandbox limits writes to the folder but **not reads**, so by default they run on Claude too.
+- No user hooks, plugins or MCP servers are loaded.
 - The server listens on `127.0.0.1` only.
 - `outputs/` and `yaddas/` are git-ignored.
 
@@ -85,7 +87,7 @@ Report vulnerabilities via [SECURITY.md](SECURITY.md).
 ## Customize
 
 - `company.md`: your company, audience, tone and channels. The whole team will know it.
-- `public/team.js`: `TEAM` (roles, skills, looks), `PERSONAS` (personality), `PIPE` (campaign steps), `WORLD` (company, floor, lift).
+- `public/team.js`: `TEAM` (roles, skills, looks), `PERSONAS` (personality), `PIPE` (campaign steps), `WORLD` (company, office, history).
 - `public/book.js`: the in-game story chapters.
 
 ## Limitations

@@ -1,7 +1,7 @@
 # ✦ Marketinq HQ: canlı agentlərin yaşadığı 3D ofis
 
-> **Ulduz Marketinq, 9-cu mərtəbə.** Burada 24 nəfər işləyir. Siz onları yuxarıdan izləyirsiniz, yaxınlaşıb danışırsınız, tapşırıq verirsiniz.
-> Onlar isə özlərini bot yox, bu ofisdə yaşayan insanlar kimi bilirlər.
+> **Ulduz Marketinq**, Bakıda kiçik reklam agentliyi. Burada 24 nəfər işləyir, siz isə onun rəhbərisiniz.
+> Yaxınlaşıb danışırsınız, tapşırıq verirsiniz. Hər birinin öz həyatı, öz fikri və öz danışıq tərzi var.
 
 ![Marketinq HQ](docs/screenshot.jpg)
 
@@ -15,7 +15,7 @@ Layihə Three.js, kiçik Node.js server, [Claude Code](https://docs.anthropic.co
 
 ## Mündəricat
 
-- [Hekayə: Mavi lift](#hekayə-mavi-lift)
+- [Hekayə](#hekayə)
 - [Nə edə bilərsiniz](#nə-edə-bilərsiniz)
 - [Tez başlanğıc](#tez-başlanğıc)
 - [Rejimlər](#rejimlər)
@@ -31,13 +31,13 @@ Layihə Three.js, kiçik Node.js server, [Claude Code](https://docs.anthropic.co
 
 ---
 
-## Hekayə: Mavi lift
+## Hekayə
 
-Hər səhər **Mavi lift**in qapısı açılır və hamı artıq masasındadır.
+Ulduz Marketinqi siz (**Rəhbər**) 2018-ci ildə iki otaqda açmısınız. İndi agentlik Fəvvarələr meydanının yaxınlığında köhnə binanın 3-cü mərtəbəsindədir və 24 nəfər işləyir.
 
-Lift yuxarı qalxanda bayırdakı həyat aşağıda qalır: ev, ailə, dünən axşam. Bunların heç biri 9-cu mərtəbəyə çıxmır. Ofisdə olanlar isə qalır: dünənki tapşırıq, Rəhbərlə söhbət, kampaniyada kimə nə təhvil verildi.
+Hər personajın öz tarixi var: Murad bağlanan qəzetdən gəlib və roman yazır, Nərmin Mingəçevirdən təzə gəlib və hamıya "siz" deyir, Zaur Statistika Komitəsindən gəlib və mənbəsiz rəqəmə inanmır. İş haqqında fikirləri var və zəif ideyaya "bəli" demirlər. Kimin kimlə dost olduğu, kimin kimlə mübahisə etdiyi söhbətlərdə görünür. Gördükləri iş və sizinlə söhbətlər yaddaşlarında qalır.
 
-Personajlar bunu qəribə saymır, onlar üçün həyat elə budur. Ofisdən kənar haqqında soruşsanız çaşacaq, maraqla düşünəcək, amma uydurma xatirə danışmayacaqlar. Onlar heç vaxt özlərini bot, proqram və ya kod adlandırmırlar. Siz onlar üçün **Rəhbər**siniz.
+Qaydalar: [docs/WORLD.md](docs/WORLD.md).
 
 Bütün hekayə və bələdçi oyunun içində də var: aşağıdakı paneldə **📖 Hekayə** düyməsi.
 
@@ -82,6 +82,45 @@ npm run demo
 
 Testlər (Claude çağırılmır): `npm test`.
 
+İctimai versiya (dijital marketinq və reklam yerləşdirmə vəzifələri olmadan): `EDITION=public npm start`.
+
+### Ulduzgram: komandanın öz sosial şəbəkəsi
+
+Ofisdə dokdakı **Sosial** düyməsi və ya `http://localhost:5180/sosial.html`: lent (post, şəkil, bəyənmə, şərh), Chat (Ofis qrupu, şöbə qrupları, şəxsi yazışmalar) və Hesabat (kim nə qədər vaxt keçirir).
+Kim nə qədər aktivdir: xasiyyətinə (məs. SMM menecer çox, SEO az), əhvalına və iş yükünə görə. İşə götürmə, çıxarma və bitən işlər də yazdırır.
+Canlı rejimdə mətnləri ucuz model yazır: `SOCIAL_MAX_PER_HOUR` (default 40) saatlıq limitdir, `SOCIAL=0` söndürür.
+
+Telefondan və ya internetdən baxmaq (yalnız sosial şəbəkə, ofisin idarəsi bağlı qalır):
+
+```bash
+SOCIAL_PASSWORD="$(cat ~/.marketinq-sosial-sifre)" npm start
+cloudflared tunnel --url http://localhost:5180
+```
+
+Açılan linkdə istifadəçi adı `rehber`, şifrə `SOCIAL_PASSWORD`-dur (uzun təsadüfi şifrə yaradın: `openssl rand -base64 33 > ~/.marketinq-sosial-sifre`). Şifrəsiz internetdən heç nə açılmır.
+
+### Agentlərin brauzeri və iş metodikası
+
+Tapşırıqda agentlər internetdə axtarış edir və saytları oxuyur (`WEB=0` söndürür). Kompüterinizdəki marketinq skill-ləri (`~/.claude/plugins`, və ya `SKILLS_DIR`) hər rola uyğun iş metodikası kimi əlavə olunur.
+
+### Rəhbərin qiyməti, komanda işi və ortaq yaddaş
+
+İdeyalar [Ruflo](https://github.com/ruvnet/ruflo)-nun hive-mind, ortaq yaddaş və Q-learning marşrutlaşdırmasından götürülüb, amma işi Ruflo yox, ofisin öz sandbox-u görür. Ruflo-nun `hive-mind` əmri Claude Code-u `--dangerously-skip-permissions` ilə açır və işçilərin hekayəsini pozardı.
+
+- **Qəbul et / Yenidən et.** Hər nəticənin altında. İrad yazmaq olar. Qəbul əhvalı qaldırır, geri qaytarmaq endirir və işçi iradı nəzərə alıb dərhal yeni variant hazırlayır. Qiymət işçinin daimi xatirəsi olur, son iradlar hər işdə ona xatırladılır. Çox iş geri qaytarılanda işdən çıxarılmaqdan qorxur.
+- **Kimə verim?** ([router.mjs](router.mjs)) Kimin hansı iş növündə güclü olduğu əvvəl roldan götürülür, sonra sizin qiymətlərinizdən öyrənilir (Q-learning: `Q ← Q + 0.35·(r − Q)`). Kampaniya pəncərəsində yazdıqca ən uyğun adamlar görünür.
+- **Komanda işi.** Kampaniya pəncərəsində "Komanda işi": Elvin (CMO) işi 2–4 hissəyə bölür, hissələr eyni vaxtda müxtəlif işçilərin kompüterində görülür (`MAX_PARALLEL` limiti ilə), sonra o birləşdirir. Yekuna da qiymət vermək olar. `TEAM_MAX` (default 4) ən çox hissə sayıdır.
+- **Ortaq yaddaş.** Sizin iradlarınız bütün ofisin daimi qaydası olur, hamı Rəhbərin zövqünü öyrənir. Kim nəyi bitirdi kimi ofis xəbərləri isə gündəlik xatirə kimi solur. Ofis panelində görünür.
+
+### Ortaq qovluq: Google Drive və Canva
+
+Tapşırıq formasında "Ortaq qovluqdan material götür" işarələnəndə, agent işə başlamazdan əvvəl ayrıca axtarış Drive və Canva hesablarınızdan tapşırığa aid materialları tapır. Agent onları şirkətin ortaq qovluğundan gələn sənəd kimi alır.
+
+- Connector-lar `claude` CLI-nin claude.ai girişindən gəlir: terminalda `claude` → `/login` → claude.ai hesabı.
+- Yalnız 13 oxuma aləti icazəlidir (axtarış, oxuma, siyahı). Yaratmaq, dəyişmək, paylaşmaq, silmək `dontAsk` rejimində rədd olunur, qalan connector-lar ümumiyyətlə gizlədilir.
+- Agentin özü hesablara qoşulmur. Material götürülən tapşırıqda agentin brauzeri söndürülür ki, hesablardan gələn məlumat internetə çıxmasın.
+- `DOCS=0` söndürür, `DOCS_MODEL` (default `sonnet`) axtarışın modelidir. Bir axtarış təxminən 1 dəqiqə və ~$0.1 çəkir.
+
 Seçimlər (mühit dəyişənləri):
 
 | Dəyişən | Standart | Nə edir |
@@ -104,7 +143,7 @@ Animasiya, gəzmək, söhbət balonları və görüşlər **heç vaxt** model ç
 
 ## Komanda
 
-24 personaj, 5 şöbə. Hər birinin xarakteri, vərdişi və sevdikləri `public/team.js` faylındadır.
+24 personaj, 5 şöbə. Hər birinin bioqrafiyası, fikirləri və danışıq tərzi `public/team.js` faylındadır.
 
 | Şöbə | Personajlar |
 |---|---|
@@ -129,8 +168,8 @@ Animasiya, gəzmək, söhbət balonları və görüşlər **heç vaxt** model ç
 ```
 
 1. Brauzer ofisi çəkir. Gündəlik həyat (iş, fasilə, söhbətlər, görüşlər) tamamilə brauzerdədir.
-2. Siz danışanda server personajın **sistem promptunu** qurur: dünya qaydaları (lift, Rəhbər, "bot deyilsən"), xarakter, həmkarlar, indi nə etdiyi və Ruflo-dan gələn xatirələr.
-3. `claude -p` alətsiz işə salınır, cavab axınla (stream) brauzerə gəlir və nitq balonunda görünür.
+2. Siz danışanda server personajın **sistem promptunu** qurur: personajın bioqrafiyası, fikirləri, danışıq tərzi, münasibətləri, agentliyin tarixçəsi, həmkarlar, indi nə etdiyi və Ruflo-dan gələn xatirələr.
+3. Söhbətdə `claude -p` alətsiz işə salınır, cavab axınla (stream) brauzerə gəlir və nitq balonunda görünür. Tapşırıqda isə personaj öz kompüterində (sandbox qovluğu) fayl və terminalla işləyir; hər əmr və fayl monitor jurnalına düşür.
 4. Söhbətdən və ya işdən sonra qısa xatirə Ruflo-ya yazılır.
 5. Kampaniyada hər addımın nəticəsi növbəti agentin promptuna əlavə olunur; brauzer personajların bir-birinə işi "təhvil verməsini" animasiya edir.
 
@@ -144,16 +183,36 @@ Personajların xatirələri [Ruflo](https://github.com/ruvnet/ruflo)-nun yaddaş
 - Danışanda mövzuya uyğun xatirələr semantik axtarışla gəlir.
 - Ehtiyat üçün hər xatirə `yaddas/<id>.jsonl` faylına da yazılır. Ruflo işləməsə belə son xatirələr itmir.
 - Yaddaşı sıfırlamaq, yəni ofisi "ilk günə" qaytarmaq üçün `yaddas/` qovluğunu silin.
-- İlk xatirədə Ruflo embedding modelini bir dəfə endirir (~20 saniyə).
+- Model: Ruflo-nun standart modeli (`all-MiniLM-L6-v2`) yalnız ingiliscədir, ona görə çoxdilli `multilingual-e5-small` (8-bit, ~118 MB) qoşulur. Server ilk işə düşəndə modeli bir dəfə Hugging Face-dən `~/.cache/ruflo/models`-ə endirir, o vaxta qədər xatirələr yalnız JSONL-ə yazılır. Azərbaycan dilində test dəstində düzgün xatirə 4/11-dən 7/11-ə qalxdı, aidiyyəti olmayan sorğuda isə artıq heç nə qaytarılmır.
+- Baza köhnə modellə qurulubsa, `kohne-…` adı ilə kənara qoyulur və bütün xatirələr JSONL-dən yeni modelə yenidən yazılır. `MEMORY_MODEL=minilm` köhnə modelə qaytarır.
+- Axtarış xatirənin tam mətnini qaytarır (əvvəllər ~50 simvolluq önizləmə gedirdi).
+
+**Unudaraq öyrənmə** ([forget.mjs](forget.mjs)). Yaddaş insan yaddaşı kimi işləyir:
+
+| Xatirə | Nə olur |
+|---|---|
+| İş: tapşırıq, kampaniya, Rəhbərlə işdən söhbət | Heç vaxt solmur, tam qalır |
+| Rəhbərlə şəxsi söhbət | ~6 günə solur |
+| Ulduzgram, chat və digər gündəlik şeylər | ~3 günə solur |
+| İşə götürülmə, kiminsə çıxarılması | ~45 günə solur |
+
+- Solma Ebbinghaus əyrisi ilə gedir: `R = e^(-t/S)`. Əvvəl aydın olur (tam mətn), sonra dumanlı (yalnız ümumi məzmun; rəqəm və sitatlar gedir), sonda unudulur və axtarışdan çıxır.
+- Yada düşən xatirə (axtarışda tapılan) möhkəmlənir, ona görə gec unudulur.
+- JSONL arxivdir, heç nə silinmir. Rəhbər **Yaddaş** tabında hər xatirənin vəziyyətini və aslını görür, işçi isə yalnız yadında qalanı bilir.
+- `MEMORY_DAY_MS` bir "günün" uzunluğudur (test üçün), `MEMORY_RUFLO=0` isə yalnız yerli yaddaşı saxlayır.
 
 > ℹ️ Ruflo `CLAUDE_PROJECT_DIR` kimi Claude Code mühit dəyişənlərini oxuyur. Ofis serveri Claude Code-un içindən işə salınsa belə yaddaşın başqa layihəyə qarışmaması üçün Ruflo yalnız `yaddas/` qovluğunda, bu dəyişənlər olmadan işə salınır. Bu layihə Ruflo-nu yalnız yaddaş üçün işlədir, `ruflo init` lazım deyil.
 > Ətraflı: [docs/RUFLO.md](docs/RUFLO.md)
 
 ## Təhlükəsizlik
 
-- Agentlər `claude -p --tools ""` ilə **alətsiz** işləyir: fayl oxuya, əmr işlədə, internetə və ya reklam kabinetinə girə bilməzlər.
+- **Söhbət** alətsizdir (`claude -p --tools ""`).
+- **Tapşırıq və kampaniya** personajın öz kompüterində gedir: `/Users/Shared/marketinq-ofisi/kompyuterler/<id>/` (macOS; dəyişmək üçün `PC_DIR`). Orada fayl yaradır, oxuyur və əmr işlədir. Claude sandbox-u (`--restricted` + `sandbox`) bunları bağlayır:
+  - yazmaq yalnız öz qovluğunda;
+  - bütün ev qovluğu (layihə faylları, `~/.ssh`, açarlar), qonşu personajların qovluqları və jurnal oxumağa bağlıdır;
+  - internet bağlıdır.
+- **Codex** personajları (`engine: 'codex'`) yalnız `CODEX=1` ilə Codex-də işləyir. Codex sandbox-u yazmağı qovluqla məhdudlaşdırır, amma **oxumağı yox**: ev qovluğunu görə bilər. Ona görə default olaraq onlar da Claude ilə işləyir.
 - İstifadəçi hook-ları, plugin-lər və MCP serverləri yüklənmir (`--setting-sources ""`, `--strict-mcp-config`).
-- İşçi qovluq boşdur (`.agent-workdir/`), layihə fayllarını görmürlər.
 - Server yalnız `127.0.0.1` ünvanında dinləyir.
 - `outputs/` və `yaddas/` git-ə düşmür (`.gitignore`).
 
@@ -166,7 +225,7 @@ Təhlükəsizlik problemi tapsanız: [SECURITY.md](SECURITY.md)
   - `TEAM`: ad, rol, şöbə, bacarıqlar, görünüş (dəri, saç, aksesuar).
   - `PERSONAS`: xarakter, vərdiş, sevdikləri, əhval emojisi.
   - `PIPE`: kampaniya addımları və ardıcıllığı.
-  - `WORLD`: şirkət adı, mərtəbə, lift, Rəhbər.
+  - `WORLD`: şirkət, ofis, tarixçə, Rəhbər.
 - **Kitab:** `public/book.js`, oyundakı hekayə fəsilləri.
 
 ## Layihə strukturu
@@ -177,10 +236,12 @@ marketinq-ofisi/
 ├── memory.mjs          # Ruflo yaddaşı + JSONL ehtiyat, izolə edilmiş mühitdə
 ├── company.md          # şirkət konteksti (siz doldurursunuz)
 ├── public/
-│   ├── index.html      # 3D ofis (Three.js), personajlar, interfeys
+│   ├── index.html      # səhifənin skeleti
+│   ├── css/ofis.css    # interfeysin stili
+│   ├── js/             # 3D ofis (kit, nav, office, agents, monitors), ssenarilər, interfeys
 │   ├── team.js         # komanda, xarakterlər, dünya, kampaniya xətti
 │   ├── live.js         # server əlaqəsi, nəticə pəncərəsi
-│   └── book.js         # 📖 oyundaxili kitab
+│   └── book.js         # oyundaxili kitab
 ├── docs/               # arxitektura, Ruflo, dünya qaydaları
 ├── outputs/            # hazır işlər (git-ə düşmür)
 └── yaddas/             # personaj xatirələri (git-ə düşmür)

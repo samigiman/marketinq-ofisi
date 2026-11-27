@@ -6,10 +6,19 @@ Layihə iki hissədən ibarətdir: brauzerdə işləyən 3D ofis və onu dil mod
 
 | Fayl | Rolu |
 |---|---|
-| `public/index.html` | Three.js səhnəsi: ofis, mebel, A* naviqasiya, personajlar (`Agent` sinfi), gündəlik həyat ssenariləri, interfeys |
+| `public/index.html` | Səhifənin skeleti: yuxarı zolaq, sol (komanda), səhnə, sağ panel |
+| `public/css/ofis.css` | İnterfeysin bütün stili: tokenlər (rəng, şrift, boşluq), panellər, dialoqlar, 3D etiketlər, kitab |
+| `public/js/kit.js` | Three.js əsasları: renderer, kamera, işıq, material və geometriya köməkçiləri |
+| `public/js/nav.js` | 0.5 m-lik grid üzərində A* naviqasiya |
+| `public/js/office.js` | Bina və mebel: otaqlar, masalar (`SEATS`), görüş yerləri, fasilə nöqtələri (`POIS`), monitor kanvasları |
+| `public/js/agents.js` | `Agent` sinfi: görünüş, gündəlik həyat, kadr yeniləməsi |
+| `public/js/monitors.js` | Masadakı monitorlar: personajın kompüter jurnalını ekrana çəkir |
+| `public/js/scenarios.js` | Görüş, kampaniya, tapşırıq; divardakı lövhə və ekran |
+| `public/js/ui.js` | Panellər, söhbət, kompüter pəncərəsi, dialoqlar, kamera keçidləri |
+| `public/js/main.js` | Başlanğıc, klik (personaj və ya monitor), əsas dövr |
 | `public/team.js` | `DEPTS`, `TEAM`, `PIPE`, `PERSONAS`, `WORLD`. Həm brauzer, həm server bunu oxuyur |
 | `public/live.js` | Server ilə əlaqə: `/api/health`, SSE (`/api/events`), tapşırıq və kampaniya sorğuları, nəticə pəncərəsi |
-| `public/book.js` | 📖 oyundaxili kitab |
+| `public/book.js` | Oyundaxili kitab |
 | `server.mjs` | HTTP + SSE server, Claude çağırışları, promptlar, növbə (`MAX_PARALLEL`) |
 | `memory.mjs` | Ruflo yaddaşı (store, search) + JSONL ehtiyat |
 
@@ -40,7 +49,7 @@ Layihə iki hissədən ibarətdir: brauzerdə işləyən 3D ofis və onu dil mod
 
 `server.mjs` daxilində:
 
-- `worldRules(agent)`: ad, rol, xarakter, həmkarlar, lift qaydası, "bot deyilsən", Rəhbər.
+- `worldRules(agent)`: bioqrafiya, fikir, danışıq tərzi, münasibətlər, agentliyin tarixçəsi, Rəhbərə münasibət (bax `docs/WORLD.md`).
 - `memoryBlock(recent, recalled)`: son xatirələr və Ruflo axtarışının nəticələri.
 - `chatSystem(...)`: söhbət üçün qısa, canlı cavab qaydaları.
 - `systemPrompt(...)`: iş üçün peşəkar sənəd qaydaları, `company.md` konteksti.
@@ -73,3 +82,17 @@ claude -p "<prompt>" --output-format stream-json --verbose --include-partial-mes
 
 `npm test` serveri demo rejimdə (`MOCK=1`, `MOCK_DELAY=0`, müvəqqəti `OUT_DIR`) işə salır və API-ni yoxlayır: tapşırıq, tam kampaniya, server dayananda davam etdirmə. Claude çağırılmır.
 - `yaddas/<agent>.jsonl`, `yaddas/ofis.db` (Ruflo)
+
+## Kompüterlər (`pc.mjs`)
+
+Hər personajın iş qovluğu: `PC_DIR` (default macOS-da `/Users/Shared/marketinq-ofisi/kompyuterler`), içində `<id>/isler/`. Qovluq ev qovluğundan kənardadır, çünki sandbox bütün ev qovluğunu oxumağa bağlayır.
+
+- **Claude:** `claude -p --restricted --tools Read,Write,Edit,Bash,Glob,Grep --settings <sandbox> --permission-mode acceptEdits`, işçi qovluq personajın qovluğudur. `sandbox.filesystem.denyRead`: `~/`, layihə qovluğu, qonşuların qovluqları, `.jurnal/`. Yazmaq yalnız öz qovluğunda, internet bağlı.
+- **Codex:** `codex exec --json -C <qovluq> -s workspace-write -c mcp_servers={}`. Yalnız `CODEX=1` ilə (model: `CODEX_MODEL`). Oxumağı məhdudlaşdırmır. Uğursuz olsa iş Claude ilə təkrarlanır.
+- **Demo rejim:** model çağırılmır, amma qovluqda real fayl yaranır və jurnal yazılır.
+- **Jurnal:** hər alət çağırışı `{type:'pc', agentId, kind: cmd|out|err|file|note, text}` SSE hadisəsidir; son 200 sətir yaddaşda, hamısı `PC_DIR/.jurnal/<id>.jsonl`-də.
+
+| Endpoint | Nə edir |
+|---|---|
+| `GET /api/pc?id=` | engine, hansı alətlə işlədiyi, məşğuldurmu, fayl ağacı, jurnal |
+| `GET /api/pc/file?id=&f=` | faylın mətni (≤256 KB, yalnız mətn; `../`, mütləq yol və simlink ilə qovluqdan çıxmaq olmur) |
