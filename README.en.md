@@ -37,7 +37,7 @@ The whole story and a guide are also inside the game: the **📖 Hekayə** (Stor
 Requirements: **Node.js 20+** and the **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** (for live mode).
 
 ```bash
-git clone https://github.com/<user>/marketinq-ofisi.git
+git clone https://github.com/samigiman/marketinq-ofisi.git
 cd marketinq-ofisi
 npm install
 claude auth login   # once; Claude subscription or API key

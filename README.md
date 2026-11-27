@@ -57,7 +57,7 @@ Bütün hekayə və bələdçi oyunun içində də var: aşağıdakı paneldə *
 Tələblər: **Node.js 20+** və **[Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)** (canlı rejim üçün).
 
 ```bash
-git clone https://github.com/<istifadəçi>/marketinq-ofisi.git
+git clone https://github.com/samigiman/marketinq-ofisi.git
 cd marketinq-ofisi
 npm install
 ```

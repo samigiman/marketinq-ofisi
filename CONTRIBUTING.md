@@ -16,7 +16,7 @@ Marketinq HQ-yə kömək etmək istədiyiniz üçün təşəkkürlər! ✦
 ## Başlamaq
 
 ```bash
-git clone https://github.com/<istifadəçi>/marketinq-ofisi.git
+git clone https://github.com/samigiman/marketinq-ofisi.git
 cd marketinq-ofisi
 npm install
 npm run demo        # Claude olmadan, http://localhost:5180
