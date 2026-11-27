@@ -1,0 +1,1777 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:,">
+<title>Marketinq HQ — Ulduz Marketinq</title>
+<style>
+  :root{
+    --ink:#262a3b; --mute:#7a7f95; --line:rgba(40,40,80,.09); --glass:rgba(255,255,255,.78);
+    --acc:#ff7a59; --acc2:#8c6cf2; --ok:#22c55e; --r:18px;
+    --shadow:0 10px 34px rgba(60,50,110,.16);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#efe8f4;color:var(--ink);
+    font:13px/1.45 "Nunito",ui-rounded,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  #app{position:fixed;inset:0} #app canvas{display:block}
+  .labels{position:fixed;inset:0;pointer-events:none}
+  .glass{background:var(--glass);backdrop-filter:blur(16px) saturate(1.3);-webkit-backdrop-filter:blur(16px) saturate(1.3);
+    border:1px solid rgba(255,255,255,.85);border-radius:var(--r);box-shadow:var(--shadow)}
+  button{font:inherit;cursor:pointer;border:0;background:transparent;color:var(--ink);border-radius:12px;padding:8px 12px;
+    transition:transform .12s ease,background .15s,color .15s}
+  button:active{transform:scale(.95)}
+  .btn{background:#fff;border:1px solid var(--line)} .btn:hover{background:#f6f3fb}
+  .btn.primary{background:linear-gradient(135deg,var(--acc),#ff5d8f);color:#fff;border:0;font-weight:700;box-shadow:0 6px 16px rgba(255,93,143,.3)}
+  input{font:inherit;border:1px solid var(--line);border-radius:12px;padding:9px 12px;background:#fff;outline:none;min-width:0;color:var(--ink)}
+  input:focus{border-color:#b9a6f5;box-shadow:0 0 0 3px rgba(140,108,242,.18)}
+  .chip{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:11.5px;white-space:nowrap}
+  .dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+  .muted{color:var(--mute)}
+
+  /* yuxarı sol: bina lövhəsi */
+  #brand{position:fixed;top:14px;left:14px;z-index:6;padding:10px 14px;display:flex;flex-direction:column;gap:8px;max-width:min(520px,calc(100% - 28px))}
+  #brand .row1{display:flex;align-items:center;gap:10px}
+  .logo{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;color:#fff;font-size:18px;flex:none;
+    background:conic-gradient(from 200deg,#ff7a59,#ff5d8f,#8c6cf2,#4cc9a6,#ff7a59)}
+  #brand b{display:block;font-size:15px;letter-spacing:.2px} #brand small{color:var(--mute);font-size:11.5px}
+  #clock{margin-left:auto;font:700 14px ui-monospace,SFMono-Regular,Menlo,monospace;padding:5px 10px;border-radius:10px;background:#fff;border:1px solid var(--line)}
+  #liveBadge{font-size:11.5px}
+  #stats{display:flex;gap:5px;flex-wrap:wrap}
+
+  /* kampaniya xətti */
+  #pipe{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:7;padding:10px 14px;max-width:min(820px,calc(100% - 600px));min-width:340px}
+  #pipe.hidden{display:none}
+  #pipeTitle{font-weight:800;margin-bottom:8px;display:flex;justify-content:space-between;gap:8px}
+  #pipeTitle span{color:var(--mute);font-weight:600}
+  #pipeSteps{display:flex;gap:4px;flex-wrap:wrap}
+  .ps{font-size:11px;padding:3px 8px;border-radius:999px;background:#f1eef7;color:var(--mute);white-space:nowrap}
+  .ps.act{background:#fff1ec;color:#d9481f;box-shadow:inset 0 0 0 1.5px #ff9c7d;animation:pulse 1.2s infinite}
+  .ps.done{background:#e9fbf1;color:#15803d}
+  @keyframes pulse{50%{box-shadow:inset 0 0 0 1.5px #ffc2ae,0 0 0 4px rgba(255,122,89,.15)}}
+
+  /* aşağı: idarə paneli (dock) */
+  #dock{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:8;display:flex;align-items:center;gap:4px;padding:6px}
+  #dock .db{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:62px;padding:6px 8px;border-radius:14px;font-size:10.5px;font-weight:700;color:#55597a}
+  #dock .db i{font-style:normal;font-size:19px;line-height:1.1}
+  #dock .db:hover{background:rgba(255,255,255,.9);color:var(--ink)}
+  #dock .db.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(60,50,110,.12)}
+  #dock .sep{width:1px;align-self:stretch;margin:6px 4px;background:var(--line)}
+  .seg{display:flex;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:0 4px}
+  .seg button{border-radius:0;padding:7px 9px;font-weight:700;font-size:11.5px;color:var(--mute)}
+  .seg button.on{background:var(--ink);color:#fff}
+
+  /* açılan kiçik pəncərələr */
+  .pop{position:fixed;left:50%;bottom:92px;transform:translateX(-50%) translateY(8px);z-index:9;padding:14px;opacity:0;pointer-events:none;transition:all .2s}
+  .pop.show{opacity:1;pointer-events:auto;transform:translateX(-50%)}
+  .pop h4{margin:0 0 8px;font-size:13px}
+  #campForm{display:flex;gap:8px} #campName{width:260px}
+  #outList{width:min(520px,calc(100vw - 32px))} #outItems{max-height:300px;overflow:auto;display:flex;flex-direction:column;gap:2px}
+  #outItems div{padding:6px 8px;border-radius:10px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+  #outItems div:hover{background:#f6f3fb}
+
+  /* canlı lent */
+  #feed{position:fixed;left:14px;bottom:16px;width:300px;z-index:6;padding:8px 12px 10px;transition:height .25s}
+  #feed .fh{display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-weight:800;font-size:12px;padding:2px 0 6px}
+  #feedList{overflow:auto;font-size:11.8px;max-height:84px;transition:max-height .25s}
+  #feed.open #feedList{max-height:260px}
+  #feedList div{padding:4px 0;border-bottom:1px dashed var(--line);animation:fin .35s ease}
+  #feedList .tm{font:700 10.5px ui-monospace,Menlo,monospace;color:var(--mute);margin-right:5px}
+  @keyframes fin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+  /* sağ: komanda siyahısı */
+  #panel{position:fixed;top:14px;right:14px;bottom:96px;width:300px;z-index:7;display:flex;flex-direction:column;overflow:hidden;
+    transform:translateX(calc(100% + 30px));transition:transform .3s cubic-bezier(.2,.8,.2,1)}
+  #panel.open{transform:none}
+  .ph{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 6px;font-size:14px}
+  .ph span{color:var(--mute);font-size:11.5px}
+  #team{overflow:auto;padding:0 8px 10px;flex:1}
+  .dept{margin:10px 6px 4px;font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--mute);display:flex;align-items:center;gap:6px}
+  .row{display:flex;gap:10px;align-items:center;padding:6px 8px;border-radius:12px;cursor:pointer}
+  .row:hover{background:rgba(255,255,255,.95)} .row.sel{background:#fff;box-shadow:inset 0 0 0 2px var(--c)}
+  .av{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:17px;flex:none;background:var(--c)}
+  .info{min-width:0;flex:1}
+  .info .n{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .info .n .r{font-weight:500;color:var(--mute);font-size:11.5px}
+  .info .st{font-size:11px;color:var(--mute);display:flex;align-items:center;gap:5px;white-space:nowrap;overflow:hidden}
+  .info .st .tk{overflow:hidden;text-overflow:ellipsis}
+
+  /* sağ: personaj kartı */
+  #sheet{position:fixed;top:14px;right:14px;bottom:96px;width:380px;z-index:8;display:flex;flex-direction:column;overflow:hidden;
+    transform:translateX(calc(100% + 30px));transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+  #sheet.open{transform:none}
+  .sh-top{padding:14px 14px 10px;background:linear-gradient(160deg,color-mix(in srgb,var(--c) 26%,#fff),#fff 75%)}
+  .sh-head{display:flex;gap:12px;align-items:center}
+  .sh-av{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-size:28px;background:#fff;box-shadow:0 0 0 3px var(--c),0 6px 16px rgba(0,0,0,.1);flex:none;position:relative}
+  .sh-av .md{position:absolute;right:-4px;bottom:-4px;font-size:18px}
+  .sh-name{font-weight:900;font-size:18px;line-height:1.15} .sh-role{color:#4f5470;font-size:12.5px} .sh-dept{font-size:10.5px;font-weight:800;color:var(--c);text-transform:uppercase;letter-spacing:.6px}
+  #shX{margin-left:auto;align-self:flex-start;padding:4px 9px;background:rgba(255,255,255,.8)}
+  .sh-vibe{margin-top:8px;font-size:12px;color:#4f5470;font-style:italic}
+  .now{margin-top:10px;background:#fff;border:1px solid var(--line);border-radius:14px;padding:8px 10px;display:flex;gap:8px;align-items:center}
+  .now .lab{font-size:10px;font-weight:800;color:var(--mute);text-transform:uppercase;letter-spacing:.6px}
+  .now #nowT{font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .pbar{height:5px;border-radius:9px;background:#eeeaf4;margin-top:5px;overflow:hidden} .pbar i{display:block;height:100%;width:0;background:var(--c);transition:width .25s linear}
+  .tabs{display:flex;gap:4px;padding:8px 12px 0;border-bottom:1px solid var(--line)}
+  .tabs button{padding:8px 10px;border-radius:12px 12px 0 0;font-weight:800;color:var(--mute);font-size:12.5px}
+  .tabs button.on{color:var(--ink);box-shadow:inset 0 -2.5px 0 var(--c)}
+  .pane{display:none;flex:1;min-height:0;flex-direction:column} .pane.on{display:flex}
+  #chatLog{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .msg{max-width:84%;padding:8px 11px;border-radius:16px;font-size:13px;white-space:pre-wrap;word-wrap:break-word;animation:fin .25s ease}
+  .msg.them{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:5px}
+  .msg.me{align-self:flex-end;background:linear-gradient(135deg,#7d66f0,#a776f2);color:#fff;border-bottom-right-radius:5px}
+  .msg em{color:var(--mute);font-style:italic} .msg.me em{color:#e8e0ff}
+  .msg.typing{color:var(--mute)}
+  .sugg{display:flex;gap:5px;flex-wrap:wrap;padding:0 12px 8px}
+  .sugg button{font-size:11.5px;padding:5px 9px;background:#fff;border:1px solid var(--line);border-radius:999px}
+  .sugg button:hover{background:#f6f3fb}
+  .composer{display:flex;gap:6px;padding:10px 12px 12px;border-top:1px solid var(--line)} .composer input{flex:1}
+  .scroll{overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
+  .lab2{font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--mute)}
+  #taskForm{display:flex;gap:6px} #taskForm input{flex:1}
+  .hint2{font-size:11.5px;color:var(--mute)}
+  .list div{padding:6px 0;border-bottom:1px dashed var(--line);font-size:12px}
+  .skills{display:flex;flex-wrap:wrap;gap:5px}
+  .mem{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 10px;font-size:12px}
+  .mem small{display:block;color:var(--mute);font-size:10.5px;margin-bottom:2px}
+
+  /* yaxınlaşanda: danış dəvəti */
+  #near{position:fixed;left:50%;bottom:96px;transform:translateX(-50%) translateY(10px);z-index:7;padding:8px 14px;opacity:0;pointer-events:none;transition:all .25s;display:flex;gap:10px;align-items:center;font-weight:700}
+  #near.show{opacity:1;pointer-events:auto;transform:translateX(-50%)}
+  #near kbd{font:700 11px ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+
+  #hint{position:fixed;left:50%;transform:translateX(-50%);top:84px;font-size:11.5px;color:#56607a;background:rgba(255,255,255,.75);padding:5px 12px;border-radius:999px;z-index:4;pointer-events:none;transition:opacity .6s}
+  #toast{position:fixed;left:50%;top:84px;transform:translateX(-50%) translateY(-10px);opacity:0;z-index:20;padding:9px 16px;pointer-events:none;transition:all .3s;font-weight:700}
+  #toast.show{opacity:1;transform:translateX(-50%)}
+  #loading{position:fixed;inset:0;display:grid;place-items:center;z-index:30;background:#efe8f4;font-size:15px;color:var(--mute);transition:opacity .5s}
+
+  /* 3D etiketlər */
+  .lbl{width:0;height:0;position:relative}
+  .lbl .inner{position:absolute;bottom:0;left:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px}
+  .bubble{background:#fff;border-radius:14px;padding:6px 10px;max-width:210px;width:max-content;font-size:12px;line-height:1.3;
+    box-shadow:0 6px 16px rgba(60,50,110,.2);position:relative;text-align:center;color:var(--ink)}
+  .bubble::after{content:"";position:absolute;left:50%;bottom:-5px;width:10px;height:10px;background:#fff;transform:translateX(-50%) rotate(45deg);border-radius:2px}
+  .bubble.hide{display:none}
+  .bubble .pbar{height:4px;margin-top:5px}
+  .tag{pointer-events:auto;cursor:pointer;display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.95);border-radius:999px;
+    padding:2px 9px 2px 6px;font-size:11px;font-weight:800;white-space:nowrap;box-shadow:0 3px 10px rgba(60,50,110,.18);border:2px solid transparent}
+  .tag .rl{display:none;font-weight:500;color:var(--mute)}
+  .tag:hover .rl,.lbl.sel .tag .rl,.lbl.near .tag .rl{display:inline}
+  .lbl.sel .tag,.lbl.near .tag{border-color:var(--c)}
+  .lbl.near .tag::after{content:"💬";margin-left:2px}
+  body.hide-names .lbl:not(.sel):not(.near) .tag{display:none}
+  body.far .bubble{font-size:10px;max-width:120px;padding:4px 7px}
+  body.far .bubble .bt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  body.far .tag{font-size:10px}
+  body.far .lbl.calm .bubble{display:none}
+
+  @media (max-width:1100px){ #feed{display:none} #pipe{max-width:calc(100% - 40px);top:auto;bottom:100px} }
+  @media (max-width:760px){
+    #sheet,#panel{left:10px;right:10px;width:auto;top:auto;height:62vh}
+    #dock .db{min-width:46px;font-size:0} #dock .db i{font-size:20px} .seg{display:none}
+    #brand{max-width:calc(100% - 28px)} #stats{display:none}
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="loading">🏢 Ofis oyanır…</div>
+<div id="app"></div>
+
+<div id="brand" class="glass">
+  <div class="row1"><div class="logo">✦</div><div><b>Marketinq HQ</b><small>Ulduz Marketinq · 9-cu mərtəbə</small></div><div id="clock">09:00</div></div>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span id="liveBadge" class="chip">⚪ <b>Simulyasiya</b></span><div id="stats"></div></div>
+</div>
+
+<div id="pipe" class="glass hidden"><div id="pipeTitle"></div><div id="pipeSteps"></div></div>
+
+<div id="panel" class="glass"><div class="ph"><b>👥 Komanda</b><span id="teamCount"></span></div><div id="team"></div></div>
+<div id="sheet" class="glass"></div>
+
+<div id="feed" class="glass"><div class="fh" id="feedH"><span>📰 Ofisdə nə baş verir</span><span class="muted">▾</span></div><div id="feedList"></div></div>
+<div id="near" class="glass"></div>
+
+<div id="campPop" class="pop glass">
+  <h4>🚀 Yeni kampaniya</h4>
+  <form id="campForm"><input id="campName" placeholder="Kampaniya adı (məs: Novruz 2027)" autocomplete="off"><button class="btn primary">Başlat</button></form>
+  <div class="hint2" style="margin-top:7px">13 nəfər növbə ilə işləyəcək — hər biri əvvəlkinin nəticəsini alıb öz hissəsini yazır.</div>
+</div>
+<div id="outPop" class="pop glass"><div id="outList"><h4>📂 Hazır işlər</h4><div id="outItems"></div></div></div>
+
+<div id="dock" class="glass">
+  <button class="db" id="btnTeam" title="Komanda siyahısı"><i>👥</i>Komanda</button>
+  <button class="db" id="btnCamp" title="Kampaniya başlat"><i>🚀</i>Kampaniya</button>
+  <button class="db" id="btnMeet" title="Görüş çağır"><i>📅</i>Görüş</button>
+  <button class="db" id="btnOut" title="Hazır işlər"><i>📂</i>İşlər</button>
+  <button class="db" id="btnBook" title="Ofisin kitabı: hekayə və bələdçi"><i>📖</i>Hekayə</button>
+  <span class="sep"></span>
+  <button class="db" id="btnCam" title="Kameranı dəyiş"><i>🎥</i>Görünüş</button>
+  <button class="db on" id="btnNames" title="Adları göstər/gizlət"><i>🏷️</i>Adlar</button>
+  <div class="seg" id="speed"><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="4">4×</button></div>
+</div>
+
+<div id="hint">🖱️ Sürüşdür: fırlat · Sağ düymə: hərəkət et · Təkər: yaxınlaş · Kiməsə yaxınlaş və danış 💬</div>
+<div id="toast" class="glass"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { DEPTS, TEAM, PIPE, PERSONAS, WORLD } from './team.js';
+import { live } from './live.js';
+import { openBook, bookSeen } from './book.js';
+
+/* ============================================================
+   KÖMƏKÇİLƏR
+============================================================ */
+const PI = Math.PI;
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const wrapA = a => { while (a > PI) a -= 2 * PI; while (a < -PI) a += 2 * PI; return a; };
+const shuffle = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const hash = s => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0; return Math.abs(h); };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/* ============================================================
+   KOMANDA MƏLUMATLARI
+============================================================ */
+const STATUS = {
+  work:     ['İşləyir', '#22c55e'],
+  think:    ['Düşünür', '#eab308'],
+  walk:     ['Yolda', '#3b82f6'],
+  break:    ['Fasilədə', '#a855f7'],
+  chat:     ['Söhbətdə', '#06b6d4'],
+  meeting:  ['Görüşdə', '#f97316'],
+  campaign: ['Kampaniyada', '#ef4444'],
+  assigned: ['Tapşırıqda', '#ec4899'],
+};
+
+const ASK = {
+  cmo: ['büdcəni təsdiqləyək?', 'bu konsepsiyaya baxa bilərsən?'],
+  marketer: ['yeni brif hazırdır?', 'hədəf auditoriyanı dəqiqləşdirək'],
+  brand: ['bu rəng brendbuka uyğundur?', 'loqonun yeri düzdür?'],
+  pm: ['deadline-ı 1 gün uzada bilərik?', 'tapşırığı lövhəyə əlavə etdin?'],
+  account: ['müştəri nə dedi?', 'feedback gəldi?'],
+  artdir: ['konsepsiyaya bir baxarsan?', 'hansı variant daha güclüdür?'],
+  designer: ['banneri bu gün bitirə bilərsən?', 'başlığı bir az böyüdək?'],
+  junior: ['ölçüləri hazırladın?', 'story şablonu hazırdır?'],
+  motion: ['animasiya 15 saniyəyə sığır?', 'loqo animasiyası necə gedir?'],
+  video: ['çəkiliş sabahdır?', 'montajın ilk versiyası var?'],
+  uiux: ['CTA düyməsini yuxarı qaldıraq?', 'prototip linkini atarsan?'],
+  smm: ['bu postu nə vaxt paylaşırıq?', 'kontent planda yer var?'],
+  smmcopy: ['caption-u qısaldaq?', 'hashtag-ları əlavə etdin?'],
+  copy: ['sloqana bir variant da?', 'başlıq 5 sözə sığsın'],
+  strateg: ['bu trend bizə uyğundur?', 'rubrikanı təsdiqləyək'],
+  community: ['şərhlərdə nə var?', 'neqativ rəy gəlib?'],
+  pr: ['bloqer razılaşdı?', 'press-reliz hazırdır?'],
+  target: ['CPM niyə artıb?', 'yeni auditoriyanı yoxladın?'],
+  ppc: ['CPC-ni azalda bilərik?', 'açar sözləri genişləndirək?'],
+  digital: ['funnel-də itki haradadır?', 'UTM-ləri yoxladın?'],
+  seo: ['bu səhifə indekslənib?', 'meta başlığı yazdın?'],
+  analyst: ['dünənki ROAS neçədir?', 'rəqəmləri hesabata salarsan?'],
+  crm: ['email açılma faizi necədir?', 'seqmenti ayırdın?'],
+  composer: ['jingle-ın demosu var?', 'musiqi daha enerjili olsun 🎶'],
+};
+const REPLIES = ['Əlbəttə 👍', 'Bir saata hazırdır', 'Yaxşı fikirdir!', 'Razıyam, edək 🙌', 'İndi baxıram 👀', 'Artıq hazırdır ✅', 'Bir az vaxt ver 🙏', 'Super, qeyd etdim 📝'];
+const THOUGHTS = ['Hmm… daha güclü ideya lazımdır', 'Insight axtarıram…', 'Bunu necə sadələşdirim?', 'Auditoriya nə istəyir?', 'Başqa bucaqdan baxım…'];
+const PRESENT_LINES = ['📅 Gündəlik: Q1 hədəfləri', '📈 Hədəf: +35% lead', '💡 Yeni kampaniya konsepsiyası', '💸 Büdcə: 40% Meta, 30% Google', '⏰ Deadline: cümə günü', '🙋 Fikirlər?'];
+const COMMENTS = ['Razıyam!', 'Reels formatı əlavə edək', 'TikTok-u da sınayaq', 'Dizaynı mən götürürəm', 'Jingle yazaram 🎶', 'Rəqəmləri izləyəcəm 📊', 'Bloqerlərlə danışaram', 'Landing-i yeniləyək'];
+
+/* ============================================================
+   RENDERER / SƏHNƏ
+============================================================ */
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+app.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(innerWidth, innerHeight);
+labelRenderer.domElement.className = 'labels';
+app.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = (() => { const c = document.createElement('canvas'); c.width = 4; c.height = 256; const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#c9dcf5'); gr.addColorStop(0.55, '#f3e6f4'); gr.addColorStop(1, '#ffe9d6');
+  g.fillStyle = gr; g.fillRect(0, 0, 4, 256); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })();
+scene.fog = new THREE.Fog('#f1e6f2', 85, 170);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.5, 400);
+camera.position.set(30, 34, 38);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.maxPolarAngle = 1.38;
+controls.minDistance = 6;
+controls.maxDistance = 95;
+
+scene.add(new THREE.HemisphereLight(0xfff6ee, 0xe6d6c8, 1.15));
+const sun = new THREE.DirectionalLight(0xfff1df, 1.75);
+sun.position.set(16, 32, 18);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -30, right: 30, top: 26, bottom: -26, near: 1, far: 90 });
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.03;
+scene.add(sun);
+
+/* materiallar və geometriya keşi */
+const matCache = new Map();
+function M(color, o = {}) {
+  const k = color + JSON.stringify(o);
+  if (!matCache.has(k)) {
+    matCache.set(k, new THREE.MeshStandardMaterial({
+      color, roughness: o.r ?? 0.78, metalness: o.m ?? 0,
+      transparent: o.o != null, opacity: o.o ?? 1,
+      emissive: o.e || '#000000', emissiveIntensity: o.ei ?? 1,
+      depthWrite: o.o == null || o.o > 0.6,
+    }));
+  }
+  return matCache.get(k);
+}
+const geoCache = new Map();
+function RB(w, h, d, r = 0.03) {
+  r = Math.min(r, Math.min(w, h, d) / 2 - 0.001);
+  const k = `${w}|${h}|${d}|${r.toFixed(3)}`;
+  if (!geoCache.has(k)) geoCache.set(k, r > 0.006 ? new RoundedBoxGeometry(w, h, d, 2, r) : new THREE.BoxGeometry(w, h, d));
+  return geoCache.get(k);
+}
+function box(p, w, h, d, mat, x, y, z, r = 0.03, shadow = true) {
+  const m = new THREE.Mesh(RB(w, h, d, r), typeof mat === 'string' ? M(mat) : mat);
+  m.position.set(x, y, z);
+  if (shadow) { m.castShadow = true; m.receiveShadow = true; }
+  p.add(m); return m;
+}
+function cyl(p, rt, rb, h, mat, x, y, z, seg = 18, shadow = true) {
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), typeof mat === 'string' ? M(mat) : mat);
+  m.position.set(x, y, z);
+  if (shadow) { m.castShadow = true; m.receiveShadow = true; }
+  p.add(m); return m;
+}
+function sph(p, r, mat, x, y, z, seg = 14) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(r, seg, Math.max(8, seg * 0.7 | 0)), typeof mat === 'string' ? M(mat) : mat);
+  m.position.set(x, y, z); m.castShadow = true; p.add(m); return m;
+}
+function canvasTex(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); draw(g, w, h);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  t.userData = { canvas: c, ctx: g }; return t;
+}
+function rrect(g, x, y, w, h, r) { g.beginPath(); g.roundRect(x, y, w, h, r); }
+function basicPlane(w, h, tex, transparent = false) {
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent, toneMapped: false }));
+}
+
+/* ============================================================
+   NAVİQASİYA ŞƏBƏKƏSİ (A*)
+============================================================ */
+const GX0 = -22, GZ0 = -16, CS = 0.5, GW = 88, GH = 64;
+const blocked = new Uint8Array(GW * GH);
+const cost = new Float32Array(GW * GH).fill(1);
+const cellOf = (x, z) => [Math.floor((x - GX0) / CS), Math.floor((z - GZ0) / CS)];
+const free = (c, r) => c >= 0 && r >= 0 && c < GW && r < GH && !blocked[r * GW + c];
+function block(x0, z0, x1, z1, pad = 0.2) {
+  const [c0, r0] = cellOf(Math.min(x0, x1) - pad, Math.min(z0, z1) - pad);
+  const [c1, r1] = cellOf(Math.max(x0, x1) + pad, Math.max(z0, z1) + pad);
+  for (let r = Math.max(0, r0); r <= Math.min(GH - 1, r1); r++)
+    for (let c = Math.max(0, c0); c <= Math.min(GW - 1, c1); c++) blocked[r * GW + c] = 1;
+}
+function addCost(x, z, rad, v) {
+  for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {
+    const cx = GX0 + (c + 0.5) * CS, cz = GZ0 + (r + 0.5) * CS;
+    if (Math.hypot(cx - x, cz - z) < rad) cost[r * GW + c] = Math.max(cost[r * GW + c], v);
+  }
+}
+function nearestFree(c, r) {
+  c = clamp(c, 0, GW - 1); r = clamp(r, 0, GH - 1);
+  if (free(c, r)) return [c, r];
+  for (let rad = 1; rad < 16; rad++) {
+    let best = null, bd = 1e9;
+    for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== rad) continue;
+      if (free(c + dx, r + dy)) { const d = dx * dx + dy * dy; if (d < bd) { bd = d; best = [c + dx, r + dy]; } }
+    }
+    if (best) return best;
+  }
+  return [c, r];
+}
+class Heap {
+  constructor() { this.a = []; this.f = []; }
+  get size() { return this.a.length; }
+  push(i, f) {
+    const a = this.a, F = this.f; a.push(i); F.push(f); let n = a.length - 1;
+    while (n > 0) { const p = (n - 1) >> 1; if (F[p] <= F[n]) break; [a[p], a[n]] = [a[n], a[p]]; [F[p], F[n]] = [F[n], F[p]]; n = p; }
+  }
+  pop() {
+    const a = this.a, F = this.f, top = a[0], la = a.pop(), lf = F.pop();
+    if (a.length) {
+      a[0] = la; F[0] = lf; let n = 0;
+      for (;;) {
+        const l = 2 * n + 1, r = l + 1; let m = n;
+        if (l < a.length && F[l] < F[m]) m = l;
+        if (r < a.length && F[r] < F[m]) m = r;
+        if (m === n) break;
+        [a[m], a[n]] = [a[n], a[m]]; [F[m], F[n]] = [F[n], F[m]]; n = m;
+      }
+    }
+    return top;
+  }
+}
+const DIRS = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+const gS = new Float32Array(GW * GH), came = new Int32Array(GW * GH), closed = new Uint8Array(GW * GH);
+function findPath(sx, sz, tx, tz) {
+  let [sc, sr] = nearestFree(...cellOf(sx, sz));
+  let [tc, tr] = nearestFree(...cellOf(tx, tz));
+  const s = sr * GW + sc, t = tr * GW + tc;
+  gS.fill(Infinity); came.fill(-1); closed.fill(0);
+  const h = (c, r) => { const dx = Math.abs(c - tc), dy = Math.abs(r - tr); return dx + dy - 0.586 * Math.min(dx, dy); };
+  const heap = new Heap(); gS[s] = 0; heap.push(s, h(sc, sr));
+  let found = false;
+  while (heap.size) {
+    const cur = heap.pop(); if (closed[cur]) continue; closed[cur] = 1;
+    if (cur === t) { found = true; break; }
+    const cc = cur % GW, cr = (cur / GW) | 0;
+    for (const [dx, dy, w] of DIRS) {
+      const nc = cc + dx, nr = cr + dy;
+      if (!free(nc, nr)) continue;
+      if (dx && dy && (!free(cc + dx, cr) || !free(cc, cr + dy))) continue;
+      const n = nr * GW + nc; if (closed[n]) continue;
+      const ng = gS[cur] + w * cost[n];
+      if (ng < gS[n]) { gS[n] = ng; came[n] = cur; heap.push(n, ng + h(nc, nr)); }
+    }
+  }
+  const pts = [];
+  if (found) {
+    const cells = []; let c = t; while (c !== -1) { cells.push(c); c = came[c]; }
+    cells.reverse();
+    for (const ci of cells) pts.push({ x: GX0 + ((ci % GW) + 0.5) * CS, z: GZ0 + (((ci / GW) | 0) + 0.5) * CS });
+  }
+  const start = { x: sx, z: sz }, goal = { x: tx, z: tz };
+  const all = [...pts, goal];
+  const los = (a, b) => {
+    const dx = b.x - a.x, dz = b.z - a.z, d = Math.hypot(dx, dz), n = Math.ceil(d / 0.2);
+    for (let i = 1; i < n; i++) {
+      const x = a.x + dx * i / n, z = a.z + dz * i / n;
+      const near = Math.hypot(x - start.x, z - start.z) < 0.75 || Math.hypot(x - goal.x, z - goal.z) < 0.75;
+      if (near) continue;
+      const [c, r] = cellOf(x, z);
+      if (c < 0 || r < 0 || c >= GW || r >= GH) return false;
+      const idx = r * GW + c;
+      if (blocked[idx] || cost[idx] > 1.5) return false;
+    }
+    return true;
+  };
+  const out = []; let anchor = start, k = 0;
+  while (k < all.length) {
+    let j = all.length - 1;
+    while (j > k && !los(anchor, all[j])) j--;
+    out.push(all[j]); anchor = all[j]; k = j + 1;
+  }
+  return out.map(p => new THREE.Vector2(p.x, p.z));
+}
+
+/* ============================================================
+   TEKSTURLAR
+============================================================ */
+function seeded(seed) { let s = seed % 2147483647 || 1; return () => (s = s * 16807 % 2147483647) / 2147483647; }
+
+const floorTex = canvasTex(512, 512, (g, w, h) => {
+  g.fillStyle = '#b8946a'; g.fillRect(0, 0, w, h);
+  const R = seeded(7), ph = 64;
+  for (let y = 0; y < h; y += ph) {
+    let x = -R() * 220;
+    while (x < w) {
+      const pw = 170 + R() * 160, l = R() * 10;
+      g.fillStyle = `hsl(33,40%,${70 + l * 0.6}%)`; g.fillRect(x + 1, y + 1, pw - 2, ph - 2);
+      g.strokeStyle = 'rgba(120,80,40,.07)';
+      for (let k = 0; k < 5; k++) { const yy = y + 6 + R() * (ph - 12); g.beginPath(); g.moveTo(x, yy); g.bezierCurveTo(x + pw * .3, yy + (R() - .5) * 8, x + pw * .6, yy + (R() - .5) * 8, x + pw, yy); g.stroke(); }
+      x += pw;
+    }
+  }
+});
+floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping; floorTex.repeat.set(6, 4.4);
+
+const tileTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#cfd6dc'; g.fillRect(0, 0, w, h);
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.fillStyle = (x + y) % 2 ? '#f4f6f8' : '#e9edf1'; g.fillRect(x * 64 + 1, y * 64 + 1, 62, 62); }
+});
+tileTex.wrapS = tileTex.wrapT = THREE.RepeatWrapping; tileTex.repeat.set(4, 4);
+
+const SCREENS = {};
+function makeScreen(type) {
+  return canvasTex(256, 160, (g, w, h) => {
+    const R = seeded(hash(type) + 3);
+    if (type === 'design') {
+      g.fillStyle = '#2b2d35'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#3a3d48'; g.fillRect(0, 0, 22, h); g.fillRect(w - 50, 0, 50, h);
+      for (let i = 0; i < 8; i++) { g.fillStyle = '#5a5f70'; rrect(g, 5, 8 + i * 17, 12, 12, 3); g.fill(); }
+      g.fillStyle = '#fff'; g.fillRect(34, 14, 160, 132);
+      const cols = ['#ee6c4d', '#8e6cf0', '#14a38b', '#f2c14e', '#3d6fb6'];
+      g.fillStyle = cols[0]; g.beginPath(); g.arc(90, 70, 34, 0, 7); g.fill();
+      g.fillStyle = cols[1]; rrect(g, 110, 40, 66, 50, 8); g.fill();
+      g.fillStyle = '#222'; g.fillRect(48, 112, 110, 9); g.fillStyle = '#999'; g.fillRect(48, 126, 80, 6);
+      for (let i = 0; i < 6; i++) { g.fillStyle = cols[i % 5]; g.fillRect(w - 42, 10 + i * 22, 34, 14); }
+    } else if (type === 'text') {
+      g.fillStyle = '#f7f8fb'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#3d6fb6'; g.fillRect(0, 0, w, 16);
+      g.fillStyle = '#fff'; g.fillRect(40, 24, 176, 136);
+      g.fillStyle = '#222'; g.fillRect(56, 36, 110, 9);
+      for (let i = 0; i < 9; i++) { g.fillStyle = '#b9c0cc'; g.fillRect(56, 56 + i * 11, 80 + R() * 64, 5); }
+    } else if (type === 'dash') {
+      g.fillStyle = '#121a2b'; g.fillRect(0, 0, w, h);
+      for (let i = 0; i < 3; i++) { g.fillStyle = '#1e2a42'; rrect(g, 8 + i * 82, 8, 76, 34, 6); g.fill(); g.fillStyle = ['#22c55e', '#60a5fa', '#f59e0b'][i]; g.fillRect(16 + i * 82, 26, 40, 8); }
+      g.fillStyle = '#1e2a42'; rrect(g, 8, 50, 240, 102, 6); g.fill();
+      for (let i = 0; i < 14; i++) { const bh = 20 + R() * 66; g.fillStyle = '#3b82f6'; g.fillRect(18 + i * 16, 144 - bh, 10, bh); }
+      g.strokeStyle = '#22c55e'; g.lineWidth = 2.5; g.beginPath();
+      for (let i = 0; i < 14; i++) g.lineTo(23 + i * 16, 110 - i * 3 - R() * 20); g.stroke();
+    } else if (type === 'social') {
+      g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h);
+      g.fillStyle = '#e8e3ff'; g.fillRect(0, 0, w, 20);
+      const cols = ['#f9a8d4', '#fdba74', '#a5b4fc', '#86efac', '#fcd34d', '#c4b5fd', '#67e8f9', '#fca5a5', '#bef264'];
+      for (let i = 0; i < 9; i++) { g.fillStyle = cols[i]; g.fillRect(62 + (i % 3) * 45, 28 + Math.floor(i / 3) * 44, 42, 41); }
+      g.fillStyle = '#8e6cf0'; g.beginPath(); g.arc(30, 44, 16, 0, 7); g.fill();
+    } else if (type === 'video') {
+      g.fillStyle = '#1b1c22'; g.fillRect(0, 0, w, h);
+      const gr = g.createLinearGradient(40, 8, 210, 90); gr.addColorStop(0, '#ff8a5b'); gr.addColorStop(1, '#6a5acd');
+      g.fillStyle = gr; g.fillRect(48, 8, 160, 86);
+      for (let t = 0; t < 4; t++) for (let i = 0; i < 6; i++) {
+        g.fillStyle = ['#60a5fa', '#f472b6', '#34d399', '#fbbf24'][t]; g.fillRect(8 + i * 41 + R() * 6, 102 + t * 14, 30 + R() * 8, 10);
+      }
+      g.fillStyle = '#ef4444'; g.fillRect(120, 98, 2, 60);
+    } else if (type === 'daw') {
+      g.fillStyle = '#16181f'; g.fillRect(0, 0, w, h);
+      const cols = ['#f59e0b', '#22d3ee', '#a78bfa', '#4ade80', '#f472b6', '#60a5fa'];
+      for (let t = 0; t < 6; t++) {
+        g.fillStyle = '#232634'; g.fillRect(0, 6 + t * 25, 40, 21);
+        g.strokeStyle = cols[t]; g.lineWidth = 1.2; g.beginPath();
+        for (let x = 46; x < w - 4; x += 2) g.lineTo(x, 16 + t * 25 + Math.sin(x * (0.2 + t * 0.05)) * (4 + R() * 6));
+        g.stroke();
+      }
+      g.fillStyle = '#fff'; g.fillRect(150, 0, 1.5, h);
+    }
+  });
+}
+function screenTex(type) { return SCREENS[type] || (SCREENS[type] = makeScreen(type)); }
+
+/* ============================================================
+   MEBEL
+============================================================ */
+const office = new THREE.Group(); scene.add(office);
+
+function monitor(p, x, y, z, type, rotY = 0, w = 0.92) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = rotY; p.add(g);
+  box(g, 0.08, 0.32, 0.06, '#2a2e38', 0, 0.16, 0.04, 0.02);
+  box(g, 0.32, 0.02, 0.22, '#2a2e38', 0, 0.01, 0.04, 0.01);
+  box(g, w, 0.56, 0.045, '#1c1f27', 0, 0.56, 0, 0.02);
+  const s = basicPlane(w - 0.06, 0.5, screenTex(type)); s.position.set(0, 0.56, -0.024); s.rotation.y = PI; g.add(s);
+  return g;
+}
+
+function chair(x, z, rot, color = '#3a4152') {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; office.add(g);
+  box(g, 0.56, 0.09, 0.56, color, 0, 0.47, 0, 0.04);
+  box(g, 0.54, 0.62, 0.08, color, 0, 0.86, -0.3, 0.04);
+  cyl(g, 0.035, 0.035, 0.4, '#8a93a3', 0, 0.24, 0, 10);
+  for (let i = 0; i < 5; i++) { const a = i / 5 * PI * 2; const leg = box(g, 0.05, 0.04, 0.32, '#5b6270', Math.sin(a) * 0.15, 0.05, Math.cos(a) * 0.15, 0); leg.rotation.y = a; }
+  return g;
+}
+
+function plant(x, z, s = 1, pot = '#e9e4dc') {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); office.add(g);
+  cyl(g, 0.3, 0.24, 0.55, pot, 0, 0.275, 0);
+  const leaf = M('#4f9a5b'), leaf2 = M('#3f8350');
+  for (let i = 0; i < 7; i++) {
+    const m = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.9, 6), i % 2 ? leaf : leaf2);
+    const a = i / 7 * PI * 2; m.position.set(Math.sin(a) * 0.14, 0.95, Math.cos(a) * 0.14);
+    m.rotation.set(Math.cos(a) * 0.45, 0, -Math.sin(a) * 0.45); m.castShadow = true; g.add(m);
+  }
+  sph(g, 0.24, leaf, 0, 1.05, 0, 10);
+  block(x - 0.3 * s, z - 0.3 * s, x + 0.3 * s, z + 0.3 * s, 0.1);
+}
+
+function rug(x, z, w, d, color, y = 0.012) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.02, d), M(color, { r: 0.95 }));
+  m.position.set(x, y, z); m.receiveShadow = true; office.add(m); return m;
+}
+
+function floorLabel(text, x, z, color, w = 5, rot = 0) {
+  const tex = canvasTex(640, 110, (g, W, H) => {
+    g.clearRect(0, 0, W, H); g.font = '800 58px -apple-system,Segoe UI,Inter,Arial,sans-serif';
+    g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = color; g.globalAlpha = .85; g.fillText(text, W / 2, H / 2 + 4);
+  });
+  const m = basicPlane(w, w * 110 / 640, tex, true); m.material.depthWrite = false;
+  m.rotation.x = -PI / 2; m.rotation.z = rot; m.position.set(x, 0.03, z); office.add(m);
+}
+
+/* İş masası. facing=+1 -> işçi +z istiqamətinə baxır. Oturacaq nöqtəsini qaytarır. */
+function desk(x, dz, facing, def, o = {}) {
+  const g = new THREE.Group(); g.position.set(x, 0, dz); g.rotation.y = facing > 0 ? 0 : PI; office.add(g);
+  const W = o.w || 2.0, D = o.d || 1.0;
+  box(g, W, 0.06, D, o.top || '#f6f1e8', 0, 0.75, 0, 0.02);
+  box(g, 0.05, 0.72, D * 0.86, '#a9b1bc', -W / 2 + 0.1, 0.36, 0, 0);
+  box(g, 0.05, 0.72, D * 0.86, '#a9b1bc', W / 2 - 0.1, 0.36, 0, 0);
+  const prop = def.prop;
+  if (prop === 'dual') {
+    monitor(g, -0.42, 0.78, 0.24, def.screen, 0.12, 0.82);
+    monitor(g, 0.44, 0.78, 0.2, def.screen === 'dash' ? 'text' : 'dash', -0.28, 0.82);
+  } else monitor(g, 0, 0.78, 0.26, def.screen);
+  box(g, 0.56, 0.025, 0.17, '#e6eaef', 0, 0.79, -0.18, 0.01);
+  box(g, 0.07, 0.03, 0.11, '#e6eaef', 0.42, 0.79, -0.17, 0.015);
+  cyl(g, 0.05, 0.045, 0.11, pick(['#ee6c4d', '#3d6fb6', '#f2c14e', '#ffffff', '#14a38b']), -0.72, 0.835, -0.12, 12);
+  if (prop === 'tablet') { box(g, 0.42, 0.018, 0.3, '#22252d', 0.62, 0.79, -0.12, 0.01); box(g, 0.012, 0.012, 0.22, '#ddd', 0.62, 0.81, -0.12, 0).rotation.y = 0.6; }
+  if (prop === 'books') for (let i = 0; i < 4; i++) box(g, 0.3, 0.06, 0.22, ['#ee6c4d', '#3d6fb6', '#f2c14e', '#14a38b'][i], -0.72, 0.81 + i * 0.065, 0.24, 0.01).rotation.y = (i - 1.5) * 0.12;
+  if (prop === 'phone') box(g, 0.08, 0.012, 0.16, '#111', 0.62, 0.785, -0.1, 0.005);
+  if (prop === 'ring') {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.2, 0.025, 8, 28), new THREE.MeshBasicMaterial({ color: '#fffbe8', toneMapped: false }));
+    ring.position.set(0.78, 1.25, 0.15); g.add(ring); cyl(g, 0.012, 0.012, 0.5, '#333', 0.78, 1.0, 0.15, 6);
+  }
+  if (prop === 'camera') {
+    const cg = new THREE.Group(); cg.position.set(-1.3, 0, -0.6); g.add(cg);
+    for (let i = 0; i < 3; i++) { const l = cyl(cg, 0.015, 0.015, 1.25, '#333', Math.sin(i * 2.1) * 0.18, 0.6, Math.cos(i * 2.1) * 0.18, 6); l.rotation.set(Math.cos(i * 2.1) * -0.28, 0, Math.sin(i * 2.1) * 0.28); }
+    box(cg, 0.26, 0.18, 0.16, '#1b1b1f', 0, 1.27, 0, 0.03); cyl(cg, 0.06, 0.06, 0.14, '#111', 0, 1.27, 0.14, 12).rotation.x = PI / 2;
+  }
+  if (o.plant !== false && Math.random() < 0.35) { cyl(g, 0.07, 0.06, 0.12, '#e9e4dc', 0.8, 0.84, 0.3, 10); sph(g, 0.1, '#4f9a5b', 0.8, 0.96, 0.3, 8); }
+  const seat = { x, z: dz - facing * 1.05, rot: facing > 0 ? 0 : PI, drop: -0.25 };
+  chair(seat.x, seat.z, seat.rot, o.chair || '#3a4152');
+  addCost(seat.x, seat.z, 0.5, 5);
+  return seat;
+}
+
+/* ============================================================
+   OFİSİN QURULMASI
+============================================================ */
+const ROOM = { x0: -22, x1: 22, z0: -16, z1: 16 };
+// postament + döşəmə
+box(office, 45.2, 0.4, 33.2, '#c7cfd9', 0, -0.21, 0, 0.15, false).receiveShadow = true;
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(44, 32), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.8 }));
+floor.rotation.x = -PI / 2; floor.receiveShadow = true; office.add(floor);
+
+// divarlar
+const wallMat = M('#fbf3e8', { r: 0.95 });
+const wallH = 3.4;
+[[0, -16.15, 44.6, 0.3], [-22.15, 0, 0.3, 32.6], [22.15, 0, 0.3, 32.6]].forEach(([x, z, w, d]) => {
+  const m = box(office, w, wallH, d, wallMat, x, wallH / 2, z, 0.02, false); m.receiveShadow = true;
+  box(office, w + 0.02, 0.12, d + 0.02, '#d9d2c7', x, 0.06, z, 0, false);
+});
+// pəncərələr
+const skyMat = new THREE.MeshBasicMaterial({ color: '#cfe8ff', toneMapped: false });
+function windowOn(side, z) {
+  const x = side * 21.98;
+  const g = new THREE.Group(); g.position.set(x, 1.85, z); g.rotation.y = side > 0 ? -PI / 2 : PI / 2; office.add(g);
+  const pane = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.8), skyMat); g.add(pane);
+  box(g, 3.8, 0.1, 0.06, '#ffffff', 0, 0.92, 0.02, 0); box(g, 3.8, 0.1, 0.06, '#ffffff', 0, -0.92, 0.02, 0);
+  box(g, 0.08, 1.9, 0.06, '#ffffff', 0, 0, 0.02, 0); box(g, 0.08, 1.9, 0.06, '#ffffff', -1.86, 0, 0.02, 0); box(g, 0.08, 1.9, 0.06, '#ffffff', 1.86, 0, 0.02, 0);
+}
+[-4.5, 1.5].forEach(z => { windowOn(-1, z); windowOn(1, z); });
+windowOn(-1, 6.2);
+
+/* ---- komanda masa qrupları (podlar) ---- */
+const PODS = [
+  { cx: -7, cz: -4, n: 3, dept: 'creative', ids: ['artdir', 'designer', 'junior', 'motion', 'video', 'uiux'] },
+  { cx: 7,  cz: -4, n: 3, dept: 'content',  ids: ['smm', 'smmcopy', 'copy', 'strateg', 'community', 'pr'] },
+  { cx: 7,  cz: 5,  n: 3, dept: 'perf',     ids: ['target', 'ppc', 'digital', 'seo', 'analyst', 'crm'] },
+  { cx: -7, cz: 5,  n: 2, dept: 'lead',     ids: ['marketer', 'brand', 'pm', 'account'] },
+];
+const SEATS = {};
+const defOf = id => TEAM.find(t => t.id === id);
+for (const pod of PODS) {
+  const col = new THREE.Color(DEPTS[pod.dept].color).lerp(new THREE.Color('#ffffff'), 0.78);
+  const half = pod.n * 2.2 / 2;
+  rug(pod.cx, pod.cz, half * 2 + 1.6, 5.0, '#' + col.getHexString());
+  box(office, half * 2 - 0.1, 0.42, 0.05, DEPTS[pod.dept].color, pod.cx, 0.99, pod.cz, 0.01);
+  pod.ids.forEach((id, i) => {
+    const side = i < pod.n ? 1 : -1, k = i % pod.n;
+    const x = pod.cx + (k - (pod.n - 1) / 2) * 2.2;
+    SEATS[id] = desk(x, pod.cz - side * 0.52, side, defOf(id));
+  });
+  block(pod.cx - half, pod.cz - 1.04, pod.cx + half, pod.cz + 1.04, 0.15);
+  // asma lampa
+  const lampMat = new THREE.MeshBasicMaterial({ color: '#fff6dc', toneMapped: false });
+  for (let k = -1; k <= 1; k += 2) {
+    const lx = pod.cx + k * half * 0.5;
+    cyl(office, 0.008, 0.008, 1.4, '#444', lx, 4.6, pod.cz, 4, false);
+    const sh = cyl(office, 0.18, 0.42, 0.32, '#2d3240', lx, 3.8, pod.cz, 20, false);
+    const d = new THREE.Mesh(new THREE.CircleGeometry(0.4, 20), lampMat); d.rotation.x = PI / 2; d.position.set(lx, 3.63, pod.cz); office.add(d);
+  }
+  const lz = pod.cz < 0 ? pod.cz - 2.95 : pod.cz + 2.95;
+  floorLabel(DEPTS[pod.dept].short, pod.cx, lz, DEPTS[pod.dept].color, 4.2);
+}
+
+/* ---- CMO ofisi (şüşə) ---- */
+const glass = new THREE.MeshPhysicalMaterial({ color: '#cfe6ff', transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0, depthWrite: false });
+function glassWall(x0, z0, x1, z1, frame = '#7b8796', h = 2.6) {
+  const len = Math.hypot(x1 - x0, z1 - z0), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, ang = Math.atan2(z1 - z0, x1 - x0);
+  const g = new THREE.Group(); g.position.set(cx, 0, cz); g.rotation.y = -ang; office.add(g);
+  const p = new THREE.Mesh(new THREE.BoxGeometry(len, h, 0.05), glass); p.position.y = h / 2; g.add(p);
+  box(g, len, 0.07, 0.09, frame, 0, h, 0, 0); box(g, len, 0.07, 0.09, frame, 0, 0.035, 0, 0);
+  for (let i = 0; i <= Math.floor(len / 2.2); i++) box(g, 0.06, h, 0.09, frame, -len / 2 + Math.min(len, i * 2.2), h / 2, 0, 0);
+  block(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), 0.22);
+}
+rug(-18, -12.5, 7.6, 6.6, '#e7ecf5');
+glassWall(-22, -9, -16, -9);
+glassWall(-14, -16, -14, -9);
+floorLabel('CMO', -18, -9.8, DEPTS.lead.color, 2.4);
+SEATS.cmo = desk(-18, -13.1, 1, defOf('cmo'), { w: 2.6, d: 1.2, top: '#6b4f3a', chair: '#232838', plant: false });
+block(-19.3, -13.7, -16.7, -12.5, 0.15);
+chair(-18.8, -11.65, PI, '#7b8796'); chair(-17.2, -11.65, PI, '#7b8796');
+addCost(-18.8, -11.65, 0.45, 5); addCost(-17.2, -11.65, 0.45, 5);
+// kitab rəfi
+{
+  const g = new THREE.Group(); g.position.set(-21.7, 0, -13); office.add(g);
+  box(g, 0.45, 2.3, 2.6, '#8b6a4f', 0, 1.15, 0, 0.02);
+  for (let s = 0; s < 4; s++) for (let i = 0; i < 9; i++) {
+    if (Math.random() < 0.2) continue;
+    box(g, 0.3, 0.32 + Math.random() * 0.1, 0.12 + Math.random() * 0.06, pick(['#ee6c4d', '#3d6fb6', '#f2c14e', '#14a38b', '#8e6cf0', '#ddd']), 0.06, 0.35 + s * 0.55, -1.1 + i * 0.26, 0.01);
+  }
+  block(-22, -14.3, -21.45, -11.7, 0.1);
+}
+plant(-21, -10, 1.1);
+
+/* ---- Səs studiyası ---- */
+const studioGlass = new THREE.MeshPhysicalMaterial({ color: '#334155', transparent: true, opacity: 0.35, roughness: 0.1, depthWrite: false });
+{
+  rug(18, -12.5, 7.6, 6.6, '#3a3550');
+  const sw = (x0, z0, x1, z1) => {
+    const len = Math.hypot(x1 - x0, z1 - z0), ang = Math.atan2(z1 - z0, x1 - x0);
+    const g = new THREE.Group(); g.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2); g.rotation.y = -ang; office.add(g);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(len, 2.6, 0.06), studioGlass); p.position.y = 1.3; g.add(p);
+    box(g, len, 0.08, 0.12, '#1f2430', 0, 2.6, 0, 0); box(g, len, 0.5, 0.12, '#1f2430', 0, 0.25, 0, 0);
+    block(Math.min(x0, x1), Math.min(z0, z1), Math.max(x0, x1), Math.max(z0, z1), 0.22);
+  };
+  sw(14, -16, 14, -9); sw(15.8, -9, 22, -9);
+  // akustik panellər
+  for (let i = 0; i < 6; i++) for (let j = 0; j < 3; j++)
+    box(office, 0.9, 0.55, 0.08, (i + j) % 2 ? '#3b3f58' : '#e8a33d', 15.2 + i * 1.15, 0.9 + j * 0.65, -15.95, 0.03, false);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++)
+    box(office, 0.08, 0.55, 0.9, (i + j) % 2 ? '#3b3f58' : '#575c7a', 21.95, 0.9 + j * 0.65, -15 + i * 1.15, 0.03, false);
+  SEATS.composer = desk(18.5, -13.4, -1, defOf('composer'), { w: 3.0, d: 1.1, top: '#2a2d3a', chair: '#1f2430', plant: false });
+  block(17, -13.95, 20, -12.85, 0.15);
+  // MIDI klaviatura
+  const kb = new THREE.Group(); kb.position.set(18.5, 0.79, -13.05); office.add(kb);
+  box(kb, 1.3, 0.05, 0.32, '#1b1b22', 0, 0, 0, 0.01);
+  for (let i = 0; i < 24; i++) box(kb, 0.048, 0.02, 0.2, '#f5f5f5', -0.6 + i * 0.052, 0.03, 0.04, 0, false);
+  for (let i = 0; i < 24; i++) if ([1, 3, 6, 8, 10].includes(i % 12)) box(kb, 0.03, 0.03, 0.12, '#111', -0.574 + i * 0.052, 0.05, 0.0, 0, false);
+  // dinamiklər
+  for (const sx of [17.2, 19.8]) { box(office, 0.34, 0.52, 0.34, '#1f2430', sx, 1.04, -13.7, 0.04); cyl(office, 0.1, 0.1, 0.02, '#e8a33d', sx, 0.98, -13.52, 16).rotation.x = PI / 2; }
+  // mikrofon
+  const mic = new THREE.Group(); mic.position.set(15.6, 0, -14.8); office.add(mic);
+  cyl(mic, 0.25, 0.25, 0.03, '#222', 0, 0.02, 0, 16); cyl(mic, 0.015, 0.015, 1.6, '#333', 0, 0.8, 0, 6); sph(mic, 0.08, '#888', 0, 1.65, 0, 10);
+  block(15.3, -15.1, 15.9, -14.5, 0.1);
+  // gitara
+  const gt = new THREE.Group(); gt.position.set(21.2, 0, -10.2); gt.rotation.set(0, -0.8, 0.15); office.add(gt);
+  const body = sph(gt, 0.28, '#b5651d', 0, 0.45, 0, 16); body.scale.set(1, 1.25, 0.35);
+  box(gt, 0.07, 0.9, 0.04, '#3b2416', 0, 1.15, 0, 0);
+  block(20.9, -10.5, 21.5, -9.9, 0.1);
+  floorLabel('SƏS STUDİYASI', 18, -9.9, '#e8a33d', 3.6);
+}
+
+/* ---- Arxa divar: Kanban + Dashboard + neon ---- */
+const kanbanTex = canvasTex(1024, 446, () => {});
+const kanban = basicPlane(4.8, 2.1, kanbanTex); kanban.position.set(-7, 1.7, -15.98); office.add(kanban);
+box(office, 5.0, 2.3, 0.06, '#c9cfd8', -7, 1.7, -16.01, 0.03, false);
+box(office, 4.6, 0.06, 0.18, '#c9cfd8', -7, 0.62, -15.9, 0.02, false);
+
+const dashTex = canvasTex(1024, 444, () => {});
+const dash = basicPlane(6, 2.6, dashTex); dash.position.set(4, 1.85, -15.94); office.add(dash);
+box(office, 6.25, 2.85, 0.1, '#14161c', 4, 1.85, -16.0, 0.04, false);
+
+const neonTex = canvasTex(800, 160, (g, w, h) => {
+  g.clearRect(0, 0, w, h); g.font = '900 84px -apple-system,Segoe UI,Inter,Arial,sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.shadowColor = '#ff7a59'; g.shadowBlur = 24; g.fillStyle = '#ffd7c9'; g.fillText('MARKETİNQ HQ', w / 2, h / 2);
+});
+const neon = basicPlane(4.6, 0.92, neonTex, true); neon.position.set(-1.5, 2.5, -15.97); office.add(neon);
+const tagTex = canvasTex(800, 90, (g, w, h) => { g.clearRect(0, 0, w, h); g.font = '600 40px -apple-system,Segoe UI,Arial'; g.textAlign = 'center'; g.fillStyle = '#7b8496'; g.fillText('ideya → kreativ → nəticə', w / 2, 55); });
+const tg = basicPlane(3.6, 0.4, tagTex, true); tg.position.set(-1.5, 1.85, -15.97); office.add(tg);
+
+/* ---- Printer & su ---- */
+{
+  box(office, 0.9, 0.85, 0.65, '#e6e9ee', -13, 0.425, -1, 0.05); box(office, 0.6, 0.05, 0.4, '#2a2e38', -13, 0.87, -1, 0.01);
+  block(-13.45, -1.33, -12.55, -0.67, 0.12);
+  cyl(office, 0.25, 0.25, 0.95, '#f1f4f8', 13, 0.475, -1, 16); cyl(office, 0.2, 0.17, 0.5, '#9fd3ff', 13, 1.2, -1, 16).material = M('#9fd3ff', { o: 0.7 });
+  block(12.7, -1.3, 13.3, -0.7, 0.12);
+}
+
+/* ---- Görüş otağı ---- */
+const MEET_SEATS = [];
+{
+  rug(-17, 11.5, 9, 7.6, '#e8e1f3');
+  const tbl = new THREE.Group(); tbl.position.set(-16.5, 0, 11.5); office.add(tbl);
+  box(tbl, 6, 0.08, 2, '#f8f5ef', 0, 0.75, 0, 0.04);
+  box(tbl, 0.14, 0.72, 1.4, '#9aa3ad', -2.3, 0.36, 0, 0.02); box(tbl, 0.14, 0.72, 1.4, '#9aa3ad', 2.3, 0.36, 0, 0.02);
+  for (const lx of [-1.6, 0, 1.6]) { box(tbl, 0.32, 0.02, 0.22, '#e2e8f0', lx, 0.8, -0.55, 0.01); box(tbl, 0.32, 0.02, 0.22, '#e2e8f0', lx, 0.8, 0.55, 0.01); }
+  block(-19.5, 10.5, -13.5, 12.5, 0.15);
+  for (const x of [-18.5, -16.5, -14.5]) {
+    MEET_SEATS.push({ x, z: 9.85, rot: 0, drop: -0.25 }); chair(x, 9.85, 0, '#8e6cf0'); addCost(x, 9.85, 0.45, 5);
+    MEET_SEATS.push({ x, z: 13.15, rot: PI, drop: -0.25 }); chair(x, 13.15, PI, '#8e6cf0'); addCost(x, 13.15, 0.45, 5);
+  }
+  const slide = canvasTex(640, 360, (g, w, h) => {
+    const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#1e1b4b'); gr.addColorStop(1, '#4c1d95'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#fff'; g.font = '800 44px -apple-system,Segoe UI,Arial'; g.fillText('Q1 PLAN', 40, 80);
+    g.font = '500 24px -apple-system,Segoe UI,Arial'; g.fillStyle = '#ddd6fe';
+    ['• +35% lead hədəfi', '• Yeni brend kampaniyası', '• TikTok + Reels fokus', '• ROAS ≥ 4.0'].forEach((t, i) => g.fillText(t, 44, 140 + i * 44));
+    g.fillStyle = '#f472b6'; g.beginPath(); g.arc(520, 230, 70, 0, 7); g.fill();
+  });
+  const tv = basicPlane(3.4, 1.9, slide); tv.position.set(-21.96, 1.75, 11.5); tv.rotation.y = PI / 2; office.add(tv);
+  box(office, 0.08, 2.05, 3.55, '#14161c', -21.99, 1.75, 11.5, 0.02, false);
+  floorLabel('GÖRÜŞ OTAĞI', -17, 15.6, '#8e6cf0', 3.8);
+}
+const PRESENT = { x: -20.4, z: 11.5, rot: PI / 2 };
+
+/* ---- Launj ---- */
+const POIS = [];
+{
+  rug(5, 13.3, 7.4, 4.8, '#f3e7da');
+  const sofa = new THREE.Group(); sofa.position.set(5, 0, 14.9); office.add(sofa);
+  const sc = '#5b7db1';
+  box(sofa, 5.2, 0.42, 1.2, sc, 0, 0.21, -0.1, 0.12);
+  box(sofa, 5.2, 0.9, 0.35, sc, 0, 0.45, 0.5, 0.12);
+  box(sofa, 0.35, 0.68, 1.3, sc, -2.6, 0.34, 0, 0.12); box(sofa, 0.35, 0.68, 1.3, sc, 2.6, 0.34, 0, 0.12);
+  for (const cx of [-1.6, 0, 1.6]) box(sofa, 1.5, 0.14, 1.0, '#6f90c4', cx, 0.48, -0.15, 0.07);
+  box(sofa, 0.45, 0.45, 0.15, '#f2c14e', -1.9, 0.75, 0.25, 0.06).rotation.z = 0.2;
+  block(2.4, 15.05, 7.6, 15.6, 0.1); block(2.2, 14.2, 2.6, 15.6, 0.05); block(7.4, 14.2, 7.8, 15.6, 0.05);
+  box(office, 2.0, 0.08, 0.9, '#8b6a4f', 5, 0.42, 12.6, 0.03);
+  cyl(office, 0.04, 0.04, 0.4, '#555', 4.2, 0.2, 12.6, 6); cyl(office, 0.04, 0.04, 0.4, '#555', 5.8, 0.2, 12.6, 6);
+  box(office, 0.35, 0.03, 0.25, '#ee6c4d', 4.7, 0.47, 12.5, 0.01); cyl(office, 0.06, 0.05, 0.1, '#fff', 5.4, 0.51, 12.7, 10);
+  block(4, 12.15, 6, 13.05, 0.12);
+  const ac = new THREE.Group(); ac.position.set(5, 0, 11.2); office.add(ac);
+  box(ac, 1.1, 0.42, 0.9, '#ee6c4d', 0, 0.21, 0, 0.12); box(ac, 1.1, 0.7, 0.25, '#ee6c4d', 0, 0.5, -0.4, 0.1);
+  block(4.45, 10.6, 5.55, 10.9, 0.05);
+  [[3.6, 14.35], [5, 14.35], [6.4, 14.35]].forEach(([x, z], i) => POIS.push({ id: 'sofa' + i, x, z, rot: PI, drop: -0.32, text: pick(['🛋️ İlham axtarır', '📱 Trendlərə baxır', '🎧 Podkast dinləyir']), anim: 'phone', status: 'break' }));
+  POIS.push({ id: 'armchair', x: 5, z: 11.25, rot: 0, drop: -0.32, text: '📖 Marketinq jurnalı oxuyur', anim: 'phone', status: 'break' });
+  floorLabel('LAUNJ', 5, 10.3, '#b07a4a', 2.4);
+}
+
+/* ---- Mətbəx ---- */
+{
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(8.6, 8.4), new THREE.MeshStandardMaterial({ map: tileTex, roughness: 0.6 }));
+  fl.rotation.x = -PI / 2; fl.position.set(17.7, 0.011, 11.8); fl.receiveShadow = true; office.add(fl);
+  box(office, 1.1, 0.95, 6.6, '#ffffff', 21.45, 0.475, 11.3, 0.02);
+  box(office, 1.15, 0.05, 6.65, '#30343f', 21.45, 0.975, 11.3, 0.01);
+  box(office, 0.6, 0.8, 6.6, '#f1ede6', 21.7, 2.4, 11.3, 0.02, false);
+  // kofe maşını
+  box(office, 0.5, 0.6, 0.45, '#2a2e38', 21.5, 1.3, 9.5, 0.05); box(office, 0.3, 0.05, 0.2, '#888', 21.3, 1.04, 9.5, 0);
+  cyl(office, 0.05, 0.04, 0.09, '#fff', 21.2, 1.05, 9.35, 10); cyl(office, 0.05, 0.04, 0.09, '#ee6c4d', 21.2, 1.05, 9.65, 10);
+  // mikrodalğa
+  box(office, 0.55, 0.35, 0.7, '#d1d5db', 21.45, 1.18, 11.6, 0.03);
+  // meyvə qabı
+  cyl(office, 0.25, 0.15, 0.1, '#e9e4dc', 21.4, 1.05, 13.4, 16); sph(office, 0.08, '#f97316', 21.35, 1.13, 13.35, 8); sph(office, 0.08, '#84cc16', 21.48, 1.13, 13.45, 8);
+  block(20.9, 8.0, 22, 14.6, 0.12);
+  // soyuducu
+  box(office, 1.0, 2.1, 0.9, '#e5e7eb', 21.4, 1.05, 15.3, 0.05); box(office, 0.04, 0.5, 0.06, '#9ca3af', 20.88, 1.3, 15.0, 0);
+  block(20.9, 14.85, 22, 15.75, 0.1);
+  // hündür masa
+  cyl(office, 0.6, 0.6, 0.05, '#f8f5ef', 16.5, 1.05, 11, 24); cyl(office, 0.05, 0.05, 1.05, '#555', 16.5, 0.52, 11, 8); cyl(office, 0.3, 0.3, 0.03, '#555', 16.5, 0.02, 11, 16);
+  for (const sx of [15.4, 17.6]) { cyl(office, 0.2, 0.2, 0.05, '#ee6c4d', sx, 0.78, 11, 14); cyl(office, 0.03, 0.03, 0.76, '#555', sx, 0.38, 11, 6); }
+  block(16.0, 10.5, 17.0, 11.5, 0.05);
+  // su sərinləşdirici
+  cyl(office, 0.22, 0.22, 0.9, '#f1f4f8', 16.5, 0.45, 15.5, 14); cyl(office, 0.18, 0.18, 0.45, '#9fd3ff', 16.5, 1.12, 15.5, 14).material = M('#9fd3ff', { o: 0.7 });
+  block(16.2, 15.2, 16.8, 15.8, 0.1);
+  POIS.push({ id: 'coffee1', x: 20.15, z: 9.5, rot: PI / 2, text: '☕ Kofe hazırlayır', anim: 'drink', status: 'break' });
+  POIS.push({ id: 'coffee2', x: 20.15, z: 11.6, rot: PI / 2, text: '🥐 Qəlyanaltı', anim: 'drink', status: 'break' });
+  POIS.push({ id: 'fruit', x: 20.15, z: 13.4, rot: PI / 2, text: '🍎 Meyvə götürür', anim: 'idle', status: 'break' });
+  POIS.push({ id: 'ht1', x: 15.4, z: 11.0, rot: PI / 2, text: '☕ Qısa fasilə', anim: 'drink', status: 'break' });
+  POIS.push({ id: 'ht2', x: 17.6, z: 11.0, rot: -PI / 2, text: '💬 Kofe üstündə söhbət', anim: 'talk', status: 'break' });
+  POIS.push({ id: 'water', x: 16.5, z: 14.7, rot: 0, text: '💧 Su içir', anim: 'drink', status: 'break' });
+  floorLabel('MƏTBƏX', 17.5, 7.9, '#64748b', 2.8);
+}
+POIS.push({ id: 'printer', x: -13, z: -0.15, rot: PI, text: '🖨️ Maketləri çap edir', anim: 'idle', status: 'work' });
+POIS.push({ id: 'water2', x: 13, z: -0.15, rot: PI, text: '💧 Su içir', anim: 'drink', status: 'break' });
+POIS.push({ id: 'board1', x: -8.2, z: -14.2, rot: PI, text: '🗂️ Lövhədə tapşırıqlara baxır', anim: 'think', status: 'think' });
+POIS.push({ id: 'board2', x: -5.8, z: -14.2, rot: PI, text: '📌 Stiker əlavə edir', anim: 'present', status: 'think' });
+POIS.push({ id: 'screen1', x: 2.8, z: -13.6, rot: PI, text: '📊 Dashboard-u izləyir', anim: 'think', status: 'think' });
+POIS.push({ id: 'screen2', x: 5.2, z: -13.6, rot: PI, text: '📈 Rəqəmləri müzakirə edir', anim: 'talk', status: 'chat' });
+POIS.push({ id: 'cmo1', x: -18.8, z: -11.65, rot: PI, drop: -0.25, text: '🗣️ CMO ilə müzakirə', anim: 'talk', status: 'chat' });
+POIS.push({ id: 'cmo2', x: -17.2, z: -11.65, rot: PI, drop: -0.25, text: '📑 Təqdimat göstərir', anim: 'talk', status: 'chat' });
+POIS.push({ id: 'studio', x: 16.6, z: -11.2, rot: Math.atan2(18.5 - 16.6, -12.35 + 11.2), text: '🎧 Jingle demosunu dinləyir', anim: 'idle', status: 'chat' });
+
+// bitkilər
+[[-21, -7.8], [-12.6, -8], [12.6, -8], [21, -7.8], [-21, 7.5], [-11.8, 15.2], [1.3, 15.2], [8.8, 15.2], [12.6, 15.2], [-3.4, -15.2], [10, -15.2], [-0.2, 9.5]].forEach(([x, z], i) => plant(x, z, 0.85 + (i % 3) * 0.15));
+
+/* ============================================================
+   PERSONAJLAR (AGENTLƏR)
+============================================================ */
+const CANCEL = Symbol('cancel');
+const timers = new Set();
+const gsleep = sec => new Promise(res => timers.add({ t: sec, res, agent: null }));
+const AGENTS = [];
+const hitboxes = [];
+const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+const hitGeo = new THREE.CylinderGeometry(0.5, 0.5, 2.4, 8);
+
+class Agent {
+  constructor(def, seat) {
+    this.def = def; this.id = def.id; this.seat = seat;
+    this.pos = new THREE.Vector3(seat.x, 0, seat.z);
+    this.rot = this.targetRot = seat.rot;
+    this.sit = 1; this.sitTarget = 1; this.sitDrop = seat.drop;
+    this.path = []; this.gen = 0; this.mode = 'free';
+    this.anim = 'type'; this.t = Math.random() * 10; this.seed = Math.random() * 10; this.walkPhase = 0;
+    this.status = 'work'; this.task = ''; this.bubbleText = ''; this.flashText = ''; this.flashT = 0;
+    this.progTimer = null; this.history = []; this.poi = null; this.meetSeat = null;
+    this.color = DEPTS[def.dept].color;
+    this.build(); this.buildLabel();
+  }
+  build() {
+    const d = this.def, L = d.look;
+    const g = this.group = new THREE.Group(); scene.add(g);
+    const shirtC = new THREE.Color(this.color).offsetHSL(0, -0.04, ((hash(d.id) % 9) - 4) / 50);
+    const shirt = new THREE.MeshStandardMaterial({ color: shirtC, roughness: 0.82 });
+    const skin = M(L.skin), hair = M(L.hair), pants = M(L.pants || '#363c4f'), shoe = M('#1f2230'), dark = M('#1b1b1f');
+    const hip = 0.9;
+    const leg = x => { const p = new THREE.Group(); p.position.set(x, hip, 0); box(p, 0.23, 0.84, 0.26, pants, 0, -0.42, 0, 0.07); box(p, 0.24, 0.1, 0.34, shoe, 0, -0.86, 0.04, 0.04); g.add(p); return p; };
+    this.legL = leg(-0.14); this.legR = leg(0.14);
+    box(g, 0.64, 0.7, 0.42, shirt, 0, hip + 0.35, 0, 0.18);
+    const arm = x => { const p = new THREE.Group(); p.position.set(x, hip + 0.66, 0); box(p, 0.17, 0.6, 0.19, shirt, 0, -0.27, 0, 0.07); box(p, 0.15, 0.13, 0.16, skin, 0, -0.62, 0, 0.05); g.add(p); return p; };
+    this.armL = arm(-0.41); this.armR = arm(0.41);
+    box(g, 0.17, 0.12, 0.17, skin, 0, hip + 0.79, 0, 0.03);
+    // böyük, yumru baş: sevimli "chibi" nisbəti
+    const h = this.head = new THREE.Group(); h.position.set(0, hip + 1.16, 0); g.add(h);
+    const H = new THREE.Group(); H.scale.setScalar(1.55); h.add(H);
+    box(H, 0.46, 0.44, 0.44, skin, 0, 0, 0, 0.17);
+    const eyeD = M('#262833', { r: 0.25 }), shine = M('#ffffff', { r: 0.2, e: '#ffffff', ei: 0.7 });
+    this.eyes = [];
+    for (const sx of [-0.1, 0.1]) {
+      const e = new THREE.Group(); e.position.set(sx, -0.005, 0.224); H.add(e);
+      box(e, 0.085, 0.11, 0.014, eyeD, 0, 0, 0, 0.035, false);
+      box(e, 0.03, 0.03, 0.01, shine, 0.018, 0.028, 0.009, 0.01, false);
+      this.eyes.push(e);
+    }
+    for (const sx of [-0.155, 0.155]) box(H, 0.075, 0.04, 0.008, M('#ff8f9c', { o: 0.7 }), sx, -0.075, 0.223, 0.018, false);
+    this.mouth = new THREE.Mesh(new THREE.TorusGeometry(0.03, 0.009, 6, 12, PI), M('#8a3d3d'));
+    this.mouth.rotation.z = PI; this.mouth.position.set(0, -0.075, 0.226); H.add(this.mouth);
+    const st = L.style;
+    if (st !== 'cap') { box(H, 0.5, 0.14, 0.48, hair, 0, 0.21, -0.01, 0.06); }
+    if (st === 'short') { box(H, 0.5, 0.32, 0.12, hair, 0, 0.04, -0.19, 0.05); box(H, 0.5, 0.08, 0.07, hair, 0, 0.16, 0.2, 0.03); }
+    if (st === 'long') { box(H, 0.52, 0.66, 0.13, hair, 0, -0.12, -0.2, 0.06); box(H, 0.07, 0.5, 0.34, hair, -0.245, -0.03, -0.04, 0.03); box(H, 0.07, 0.5, 0.34, hair, 0.245, -0.03, -0.04, 0.03); box(H, 0.5, 0.09, 0.07, hair, 0, 0.16, 0.2, 0.03); }
+    if (st === 'bun') { box(H, 0.5, 0.34, 0.12, hair, 0, 0.04, -0.19, 0.05); sph(H, 0.13, hair, 0, 0.33, -0.12, 12); }
+    if (st === 'curly') { for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) sph(H, 0.12, hair, -0.15 + i * 0.15, 0.26, -0.15 + j * 0.15, 8); box(H, 0.5, 0.3, 0.12, hair, 0, 0.04, -0.19, 0.05); }
+    if (st === 'cap') { box(H, 0.5, 0.15, 0.48, this.color, 0, 0.22, -0.01, 0.07); box(H, 0.42, 0.03, 0.2, this.color, 0, 0.16, 0.3, 0.01); box(H, 0.5, 0.22, 0.1, hair, 0, 0.02, -0.2, 0.03); }
+    if (L.acc === 'glasses') {
+      const lens = M('#bfe3ff', { o: 0.45, r: 0.1 });
+      box(H, 0.15, 0.11, 0.015, lens, -0.1, 0.02, 0.235, 0); box(H, 0.15, 0.11, 0.015, lens, 0.1, 0.02, 0.235, 0);
+      box(H, 0.36, 0.02, 0.02, '#222', 0, 0.075, 0.238, 0);
+    }
+    if (L.acc === 'headphones') {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.28, 0.035, 8, 18, PI), M('#222')); band.position.set(0, 0.02, 0); H.add(band);
+      for (const sx of [-0.27, 0.27]) { const c = cyl(H, 0.1, 0.1, 0.08, '#2a2a2a', sx, 0, 0, 14); c.rotation.z = PI / 2; }
+    }
+    if (L.acc === 'beret') { const b = cyl(H, 0.28, 0.27, 0.09, '#c0392b', 0.03, 0.31, -0.02, 16); b.rotation.z = -0.2; }
+    if (L.acc === 'tie') { box(g, 0.08, 0.42, 0.02, '#c0392b', 0, hip + 0.42, 0.185, 0); box(g, 0.24, 0.06, 0.02, '#ffffff', 0, hip + 0.68, 0.183, 0); }
+    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+    const hb = new THREE.Mesh(hitGeo, hitMat); hb.position.y = 1.2; hb.userData.agent = this; g.add(hb); hitboxes.push(hb);
+  }
+  buildLabel() {
+    const el = document.createElement('div'); el.className = 'lbl'; el.style.setProperty('--c', this.color);
+    el.innerHTML = `<div class="inner"><div class="bubble hide"><div class="bt"></div><div class="pbar"><i style="background:${this.color}"></i></div></div>
+      <div class="tag"><span class="dot"></span><span class="nm">${this.def.emoji} ${esc(this.def.name)}</span><span class="rl">· ${esc(this.def.role)}</span></div></div>`;
+    this.el = el; this.elBubble = el.querySelector('.bubble'); this.elBT = el.querySelector('.bt');
+    this.elBar = el.querySelector('.pbar'); this.elBarI = this.elBar.querySelector('i'); this.elDot = el.querySelector('.dot');
+    el.querySelector('.tag').addEventListener('pointerdown', e => { e.stopPropagation(); select(this, true); });
+    const obj = new CSS2DObject(el); obj.position.set(0, 2.8, 0); this.group.add(obj);
+  }
+
+  /* --- asinxron primitivlər --- */
+  sleep(sec, progress = false) {
+    return new Promise((res, rej) => { const tm = { t: sec, dur: sec, res, rej, agent: this }; timers.add(tm); if (progress) this.progTimer = tm; });
+  }
+  walkTo(x, z, rot = null, drop = null) {
+    return new Promise((res, rej) => {
+      this.path = findPath(this.pos.x, this.pos.z, x, z);
+      this.arriveRot = rot; this.arriveDrop = drop; this.sitTarget = 0;
+      this.status = 'walk'; this.anim = 'idle';
+      this.walkRes = res; this.walkRej = rej;
+      if (!this.path.length) this.arrive();
+    });
+  }
+  arrive() {
+    if (this.arriveRot != null) this.targetRot = this.arriveRot;
+    if (this.arriveDrop != null) { this.sitDrop = this.arriveDrop; this.sitTarget = 1; }
+    const r = this.walkRes; this.walkRes = this.walkRej = null; r && r();
+  }
+  interrupt() {
+    this.gen++;
+    for (const tm of [...timers]) if (tm.agent === this) { timers.delete(tm); tm.rej(CANCEL); }
+    this.progTimer = null;
+    if (this.walkRej) { const r = this.walkRej; this.walkRes = this.walkRej = null; this.path = []; r(CANCEL); }
+    if (this.poi) { this.poi.busy = null; this.poi = null; }
+    if (this.meetSeat) { this.meetSeat.busy = null; this.meetSeat = null; }
+    this.bubbleText = '';
+  }
+  async run(script, mode = 'task') {
+    this.interrupt(); const g = this.gen; this.mode = mode;
+    try { await script(); } catch (e) { if (e !== CANCEL) console.error(e); return; }
+    if (g === this.gen) this.startLife();
+  }
+  startLife() { this.run(() => this.routine(), 'free'); }
+  atHome() { return Math.hypot(this.pos.x - this.seat.x, this.pos.z - this.seat.z) < 0.15; }
+  goHome() { return this.walkTo(this.seat.x, this.seat.z, this.seat.rot, this.seat.drop); }
+  say(t) { this.bubbleText = t; }
+  flash(t, sec = 3) { this.flashText = t; this.flashT = sec; }
+  completed(task, loud = false, file = null) {
+    const tm = clockStr();
+    this.history.unshift(file ? { s: `${tm} · ✅ ${task}`, file, title: `${this.def.name}: ${task}` } : `${tm} · ✅ ${task}`); if (this.history.length > 12) this.history.pop();
+    DONE.unshift({ text: task, dept: this.def.dept, who: this.def.name }); if (DONE.length > 10) DONE.pop();
+    if (file) log(this, `“${esc(task)}” hazırdır ✅ ${fileLink(file, `${this.def.name}: ${task}`)}`);
+    else if (loud || Math.random() < 0.3) log(this, `“${esc(task)}” tapşırığını bitirdi ✅`);
+  }
+
+  /* --- gündəlik həyat --- */
+  async routine() {
+    if (!this.atHome()) await this.goHome();
+    this.sitTarget = 1;
+    while (true) {
+      const r = Math.random();
+      if (r < 0.5) await this.doWork();
+      else if (r < 0.63) await this.doThink();
+      else if (r < 0.8) await this.doCollab();
+      else await this.doBreak();
+    }
+  }
+  async doWork(dur) {
+    const task = pick(this.def.tasks); this.task = task;
+    this.status = 'work'; this.anim = 'type'; this.say(`${this.def.emoji} ${task}`);
+    await this.sleep(dur ?? rand(12, 26), true);
+    this.completed(task);
+  }
+  async doThink() {
+    this.status = 'think'; this.anim = 'think'; this.say('💭 ' + pick(THOUGHTS));
+    await this.sleep(rand(4, 7));
+  }
+  async doCollab() {
+    const others = AGENTS.filter(a => a !== this && a.mode === 'free' && a.atHome());
+    if (!others.length) return this.doWork();
+    const same = others.filter(a => a.def.dept === this.def.dept);
+    const b = same.length && Math.random() < 0.55 ? pick(same) : pick(others);
+    const sp = sideSpot(b);
+    await this.walkTo(sp.x, sp.z, sp.rot);
+    this.status = 'chat'; this.anim = 'talk';
+    const q = pick(ASK[b.id] || ['bir dəqiqən var?']);
+    this.say(`💬 ${b.def.name}, ${q}`);
+    await this.sleep(2.6);
+    const rep = pick(REPLIES);
+    if (b.mode === 'free') b.flash('💬 ' + rep, 3.4);
+    if (Math.random() < 0.3) log(this, `→ <b>${esc(b.def.name)}</b>: “${esc(q)}”`);
+    await this.sleep(3.4);
+    await this.goHome();
+  }
+  async doBreak() {
+    const opts = POIS.filter(p => !p.busy && !(p.id === 'studio' && this.id === 'composer'));
+    if (!opts.length) return this.doThink();
+    const p = pick(opts); p.busy = this; this.poi = p;
+    await this.walkTo(p.x, p.z, p.rot, p.drop ?? null);
+    this.status = p.status || 'break'; this.anim = p.anim || 'idle'; this.say(p.text);
+    await this.sleep(rand(6, 12));
+    p.busy = null; this.poi = null;
+    await this.goHome();
+  }
+
+  /* --- kadr yeniləməsi --- */
+  update(dt) {
+    this.t += dt;
+    if (this.path.length) {
+      if (this.sit > 0.15) this.sitTarget = 0;
+      else {
+        const tg = this.path[0], dx = tg.x - this.pos.x, dz = tg.y - this.pos.z, d = Math.hypot(dx, dz), step = 2.4 * dt;
+        if (d > 0.001) this.targetRot = Math.atan2(dx, dz);
+        if (d <= step) { this.pos.x = tg.x; this.pos.z = tg.y; this.path.shift(); if (!this.path.length) this.arrive(); }
+        else { this.pos.x += dx / d * step; this.pos.z += dz / d * step; }
+        this.walkPhase += dt * 9.5;
+      }
+    }
+    this.sit += clamp(this.sitTarget - this.sit, -dt * 4, dt * 4);
+    const s = this.sit, walking = this.path.length > 0 && s <= 0.15;
+    const sw = walking ? Math.sin(this.walkPhase) * 0.55 : 0;
+    this.legL.rotation.x = lerp(sw, -1.45, s); this.legR.rotation.x = lerp(-sw, -1.45, s);
+    const bob = walking ? Math.abs(Math.cos(this.walkPhase)) * 0.05 : 0;
+    this.group.position.set(this.pos.x, this.sitDrop * s + bob, this.pos.z);
+    this.rot += wrapA(this.targetRot - this.rot) * Math.min(1, dt * 9);
+    this.group.rotation.y = this.rot;
+
+    let aL = 0, aR = 0, zL = -0.06, zR = 0.06, hx = 0, hy = Math.sin(this.t * 0.4 + this.seed) * 0.15, hz = 0;
+    if (this.faceBoss && !walking) {
+      const tgt = Math.atan2(camera.position.x - this.pos.x, camera.position.z - this.pos.z);
+      this.targetRot = this.rot + wrapA(tgt - this.rot) * 0.6;
+    }
+    if (walking) { aL = -sw * 0.9; aR = sw * 0.9; }
+    else switch (this.anim) {
+      case 'type': aL = -1.2 + Math.sin(this.t * 16) * 0.07; aR = -1.2 + Math.sin(this.t * 16 + 2) * 0.07; zL = 0.18; zR = -0.18; hx = 0.12; hy *= 0.3; break;
+      case 'think': aR = -2.35; zR = -0.45; aL = -0.5; zL = 0.35; hz = 0.15; hx = -0.1; break;
+      case 'talk': aL = -0.5 + Math.sin(this.t * 3) * 0.35; aR = -0.7 + Math.sin(this.t * 3.7 + 1) * 0.4; hy = Math.sin(this.t * 1.5) * 0.2; break;
+      case 'present': aR = -1.7 + Math.sin(this.t * 1.8) * 0.35; zR = 0.3; aL = -0.3; break;
+      case 'drink': aR = -2.1 + Math.sin(this.t * 0.8) * 0.15; zR = -0.35; break;
+      case 'phone': aR = -1.5; zR = -0.45; aL = -1.3; zL = 0.4; hx = 0.3; hy = 0; break;
+      default: aL = Math.sin(this.t * 1.2) * 0.04; aR = -aL;
+    }
+    if (this.waveT > 0) { this.waveT -= dt; aR = -2.9 + Math.sin(this.t * 14) * 0.25; zR = -0.35; }
+    // göz qırpma, sevinc, danışan ağız
+    this.blinkT = (this.blinkT ?? rand(1, 4)) - dt;
+    let ey = 1; if (this.blinkT < 0) { ey = 0.08; if (this.blinkT < -0.14) this.blinkT = rand(2.2, 5.5); }
+    const happy = this.waveT > 0 || this.speaking;
+    const kk = Math.min(1, dt * 22);
+    for (const e of this.eyes) e.scale.y += ((happy ? Math.min(ey, 0.45) : ey) - e.scale.y) * kk;
+    const talking = this.speaking || (this.anim === 'talk' && !walking);
+    this.mouth.scale.set(talking ? 1.15 : 1, talking ? 1 + Math.abs(Math.sin(this.t * 13)) * 1.4 : 1, 1);
+    const k = Math.min(1, dt * 10);
+    this.armL.rotation.x += (aL - this.armL.rotation.x) * k; this.armR.rotation.x += (aR - this.armR.rotation.x) * k;
+    this.armL.rotation.z += (zL - this.armL.rotation.z) * k; this.armR.rotation.z += (zR - this.armR.rotation.z) * k;
+    this.head.rotation.x += (hx - this.head.rotation.x) * k; this.head.rotation.y += (hy - this.head.rotation.y) * k; this.head.rotation.z += (hz - this.head.rotation.z) * k;
+    if (this.flashT > 0) this.flashT -= dt;
+    this.updateLabel();
+  }
+  progress() { if (this.liveProg != null) return this.liveProg; return this.progTimer ? clamp(1 - this.progTimer.t / this.progTimer.dur, 0, 1) : null; }
+  updateLabel() {
+    const txt = this.flashT > 0 ? this.flashText : this.bubbleText;
+    if (txt !== this._lt) { this._lt = txt; this.elBT.textContent = txt; this.elBubble.classList.toggle('hide', !txt); }
+    const p = this.flashT > 0 ? null : this.progress();
+    const sb = p != null;
+    if (sb !== this._sb) { this._sb = sb; this.elBar.style.display = sb ? 'block' : 'none'; }
+    if (sb) { const w = Math.round(p * 100); if (w !== this._pw) { this._pw = w; this.elBarI.style.width = w + '%'; } }
+    if (this.status !== this._ls) { this._ls = this.status; this.elDot.style.background = STATUS[this.status][1]; }
+    const calm = this.flashT <= 0 && (this.status === 'work' || this.status === 'think') && this !== selected;
+    if (calm !== this._calm) { this._calm = calm; this.el.classList.toggle('calm', calm); }
+  }
+}
+
+function sideSpot(b) {
+  const s = b.seat, fx = Math.sin(s.rot), fz = Math.cos(s.rot), px = Math.cos(s.rot), pz = -Math.sin(s.rot);
+  let best = null, bd = -1;
+  for (const sg of [1, -1]) {
+    const x = s.x + px * 0.95 * sg - fx * 0.1, z = s.z + pz * 0.95 * sg - fz * 0.1;
+    const d = Math.min(...AGENTS.filter(a => a !== b).map(a => Math.hypot(a.seat.x - x, a.seat.z - z)));
+    if (d > bd) { bd = d; best = { x, z }; }
+  }
+  best.rot = Math.atan2(s.x - best.x, s.z - best.z);
+  return best;
+}
+
+const DONE = [];
+const BACKLOG = shuffle(TEAM.flatMap(t => t.tasks.map(x => ({ text: x, dept: t.dept })))).slice(0, 6);
+for (const def of TEAM) AGENTS.push(new Agent(def, SEATS[def.id]));
+const byId = id => AGENTS.find(a => a.id === id);
+
+/* ============================================================
+   UI: lent, komanda paneli, detallar
+============================================================ */
+let simMin = 9 * 60;
+const clockStr = () => { const m = Math.floor(simMin) % (24 * 60); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+const feedList = document.getElementById('feedList');
+const fileLink = (file, title) => `<span class="flink" data-file="${esc(file)}" data-title="${esc(title)}">📄 bax</span>`;
+function log(agent, html) {
+  const d = document.createElement('div');
+  d.innerHTML = `<span class="tm">${clockStr()}</span>` + (agent ? `${agent.def.emoji} <b>${esc(agent.def.name)}</b> ` : '') + html;
+  feedList.prepend(d);
+  while (feedList.children.length > 60) feedList.lastChild.remove();
+}
+let toastT;
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2400); }
+
+const teamEl = document.getElementById('team');
+document.getElementById('teamCount').textContent = `${TEAM.length} nəfər · ${Object.keys(DEPTS).length} şöbə`;
+const rowEls = {};
+for (const [k, dp] of Object.entries(DEPTS)) {
+  const h = document.createElement('div'); h.className = 'dept'; h.innerHTML = `<span class="dot" style="background:${dp.color}"></span>${dp.name}`; teamEl.appendChild(h);
+  for (const a of AGENTS.filter(a => a.def.dept === k)) {
+    const r = document.createElement('div'); r.className = 'row'; r.style.setProperty('--c', a.color);
+    r.innerHTML = `<div class="av" style="background:${a.color}26">${a.def.emoji}</div><div class="info"><div class="n">${esc(a.def.name)} ${PERSONAS[a.id]?.mood || ''} <span class="r">· ${esc(a.def.role)}</span></div>
+      <div class="st"><i class="dot"></i><span class="stt"></span><span>·</span><span class="tk"></span></div></div>`;
+    r.addEventListener('click', () => select(a, true));
+    teamEl.appendChild(r);
+    rowEls[a.id] = { r, dot: r.querySelector('.dot'), st: r.querySelector('.stt'), tk: r.querySelector('.tk') };
+  }
+}
+
+/* ---------- komanda paneli və açılan pəncərələr ---------- */
+const panelEl = document.getElementById('panel');
+function setPanel(open) {
+  panelEl.classList.toggle('open', open);
+  document.getElementById('btnTeam').classList.toggle('on', open);
+  if (open && selected) select(null);
+}
+function togglePop(id, btnId, show) {
+  const el = document.getElementById(id), on = show ?? !el.classList.contains('show');
+  for (const [p, b] of [['campPop', 'btnCamp'], ['outPop', 'btnOut']]) {
+    document.getElementById(p).classList.toggle('show', p === id && on);
+    document.getElementById(b).classList.toggle('on', p === id && on);
+  }
+  return on;
+}
+
+/* ---------- personaj kartı: söhbət, iş, yaddaş ---------- */
+const sheet = document.getElementById('sheet');
+let selected = null, follow = false, curTab = 'chat';
+const selRing = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.78, 40), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.95, depthWrite: false, toneMapped: false }));
+selRing.rotation.x = -PI / 2; selRing.visible = false; scene.add(selRing);
+
+const GREET = ['👋 Salam, Rəhbər!', '😊 Oo, xoş gəldiniz!', '👋 Buyurun, Rəhbər!', '🥰 Sizi görməyə şadam!'];
+const SUGG = ['Nə iş görürsən?', 'Günün necə keçir?', 'Liftə minməmişdən əvvəl nə xatırlayırsan?', 'Kimlə işləməyi sevirsən?'];
+const CHATS = (() => { try { return JSON.parse(localStorage.getItem('ofis-chats') || '{}'); } catch { return {}; } })();
+const saveChats = () => { try { localStorage.setItem('ofis-chats', JSON.stringify(CHATS)); } catch {} };
+const rich = t => esc(t).replace(/\*([^*\n]{1,120})\*/g, '<em>*$1*</em>').replace(/_\(([^)]*)\)_/g, '<em>($1)</em>');
+const activityOf = a => `${STATUS[a.status][0]} — ${a.task || a.bubbleText || 'masasında'}`;
+
+function select(a, focus = false) {
+  if (selected) { selected.el.classList.remove('sel'); rowEls[selected.id].r.classList.remove('sel'); selected.faceBoss = false; }
+  selected = a;
+  if (!a) { sheet.classList.remove('open'); selRing.visible = false; follow = false; return; }
+  setPanel(false); togglePop('campPop', 'btnCamp', false);
+  a.el.classList.add('sel'); rowEls[a.id].r.classList.add('sel');
+  rowEls[a.id].r.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  selRing.material.color.set(a.color); selRing.visible = true;
+  a.faceBoss = true; a.waveT = 1.5; a.flash(pick(GREET), 2.6);
+  renderSheet(a);
+  sheet.classList.add('open');
+  if (focus) { follow = true; focusOn(a, 12); }
+}
+
+function renderSheet(a) {
+  const d = a.def, p = PERSONAS[a.id] || {};
+  sheet.style.setProperty('--c', a.color);
+  const modeHint = live.mode === 'live' ? 'Tapşırıq real agentə gedir, hazır olanda 📄 nəticə qayıdır.'
+    : live.mode === 'mock' ? 'Demo rejim: Claude çağırılmır, cavablar nümunədir.' : 'Server qoşulu deyil: yalnız animasiya işləyir.';
+  sheet.innerHTML = `
+    <div class="sh-top">
+      <div class="sh-head"><div class="sh-av">${d.emoji}<span class="md">${p.mood || ''}</span></div>
+        <div><div class="sh-dept">${DEPTS[d.dept].name}</div><div class="sh-name">${esc(d.name)}</div><div class="sh-role">${esc(d.role)}</div></div>
+        <button id="shX" title="Bağla (Esc)">✕</button></div>
+      <div class="sh-vibe">${esc(p.vibe || '')}</div>
+      <div class="now"><span class="dot" id="nowDot"></span><div style="flex:1;min-width:0"><div class="lab" id="nowS"></div><div id="nowT"></div><div class="pbar"><i id="nowP"></i></div></div></div>
+    </div>
+    <div class="tabs"><button data-tab="chat">💬 Söhbət</button><button data-tab="work">📋 İş</button><button data-tab="mem">🧠 Yaddaş</button></div>
+    <div class="pane" data-pane="chat">
+      <div id="chatLog"></div>
+      <div class="sugg">${SUGG.map(s => `<button type="button">${esc(s)}</button>`).join('')}</div>
+      <form class="composer" id="chatForm"><input id="chatIn" maxlength="500" placeholder="${esc(d.name)} ilə danış…" autocomplete="off"><button class="btn primary" title="Göndər">➤</button></form>
+    </div>
+    <div class="pane" data-pane="work"><div class="scroll">
+      <div class="lab2">Tapşırıq ver</div>
+      <form id="taskForm"><input id="taskIn" maxlength="300" placeholder="məs: ${esc(pick(d.tasks))}" autocomplete="off"><button class="btn primary">Göndər</button></form>
+      <div class="hint2">${modeHint}</div>
+      <div class="lab2">Bacarıqlar</div><div class="skills">${d.skills.map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div>
+      <div class="lab2">Son görülən işlər</div><div class="list" id="dH"></div>
+    </div></div>
+    <div class="pane" data-pane="mem"><div class="scroll" id="memBox"></div></div>`;
+  sheet.querySelector('#shX').onclick = () => select(null);
+  sheet.querySelectorAll('.tabs button').forEach(b => (b.onclick = () => setTab(b.dataset.tab)));
+  sheet.querySelectorAll('.sugg button').forEach(b => (b.onclick = () => sendChat(a, b.textContent)));
+  sheet.querySelector('#chatForm').onsubmit = e => { e.preventDefault(); const i = sheet.querySelector('#chatIn'); const v = i.value.trim(); if (v) { i.value = ''; sendChat(a, v); } };
+  sheet.querySelector('#taskForm').onsubmit = e => {
+    e.preventDefault(); const i = sheet.querySelector('#taskIn'); const v = i.value.trim() || i.placeholder.replace(/^məs: /, '');
+    i.value = ''; assignTask(a, v);
+  };
+  renderChat(a); setTab(curTab); refreshDetail(true);
+}
+
+function setTab(t) {
+  curTab = t;
+  sheet.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+  sheet.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === t));
+  if (t === 'mem' && selected) loadMemories(selected);
+  if (t === 'chat') setTimeout(() => sheet.querySelector('#chatIn')?.focus(), 50);
+}
+
+function renderChat(a) {
+  const log = sheet.querySelector('#chatLog'); if (!log) return;
+  const msgs = CHATS[a.id] || [];
+  const intro = `*${a.def.name} başını qaldırır* ${PERSONAS[a.id]?.mood || ''} Salam, Rəhbər! Nə lazımdır?`;
+  log.innerHTML = (msgs.length ? '' : `<div class="msg them">${rich(intro)}</div>`) +
+    msgs.map(m => `<div class="msg ${m.role === 'me' ? 'me' : 'them'}">${rich(m.text)}</div>`).join('');
+  log.scrollTop = log.scrollHeight;
+}
+
+const busyChat = new Set();
+async function sendChat(a, text) {
+  if (busyChat.has(a.id)) return;
+  const msgs = (CHATS[a.id] ||= []);
+  if (!live.on) { toast('⚪ Söhbət üçün körpü server lazımdır: npm start'); return; }
+  msgs.push({ role: 'me', text }); saveChats();
+  const isOpen = () => selected === a;
+  if (isOpen()) renderChat(a);
+  const logEl = () => (isOpen() ? sheet.querySelector('#chatLog') : null);
+  const bubble = document.createElement('div'); bubble.className = 'msg them typing'; bubble.textContent = '…';
+  logEl()?.appendChild(bubble); if (logEl()) logEl().scrollTop = logEl().scrollHeight;
+  busyChat.add(a.id); a.speaking = true; a.faceBoss = true;
+  let reply = '';
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ agentId: a.id, message: text, history: msgs.slice(0, -1).slice(-10), activity: activityOf(a) }) });
+    if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || 'Cavab gəlmədi');
+    const rd = r.body.getReader(), dec = new TextDecoder();
+    for (;;) {
+      const { value, done } = await rd.read(); if (done) break;
+      reply += dec.decode(value, { stream: true });
+      bubble.classList.remove('typing'); bubble.innerHTML = rich(reply);
+      if (logEl()) logEl().scrollTop = logEl().scrollHeight;
+      const clean = reply.replace(/\*[^*]*\*/g, '').trim();
+      if (clean) a.say('💬 ' + (clean.length > 70 ? '…' + clean.slice(-68) : clean));
+    }
+  } catch (e) { reply = `⚠️ ${e.message}`; }
+  busyChat.delete(a.id); a.speaking = false;
+  reply = reply.trim() || '…';
+  msgs.push({ role: 'them', text: reply }); if (msgs.length > 40) msgs.splice(0, msgs.length - 40); saveChats();
+  const clean = reply.replace(/\*[^*]*\*/g, '').replace(/\s+/g, ' ').trim();
+  a.flash('💬 ' + (clean.length > 80 ? clean.slice(0, 78) + '…' : clean), 5);
+  if (isOpen()) renderChat(a);
+  else log(a, `💬 Rəhbərə cavab verdi`);
+}
+
+async function loadMemories(a) {
+  const box = sheet.querySelector('#memBox'); if (!box) return;
+  if (!live.on) { box.innerHTML = '<div class="hint2">Yaddaş server işləyəndə görünür.</div>'; return; }
+  box.innerHTML = '<div class="hint2">Xatırlayır…</div>';
+  try {
+    const j = await fetch('/api/agent?id=' + a.id).then(r => r.json());
+    if (selected !== a) return;
+    const when = t => new Date(t).toLocaleString('az-AZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    box.innerHTML = `<div class="lab2">🧠 ${j.count} iş xatirəsi · ${j.ruflo ? 'Ruflo yaddaşı (AgentDB)' : 'yerli yaddaş'}</div>
+      <div class="hint2">${esc(a.def.name)} yalnız ofisdə yaşadıqlarını xatırlayır. ${esc(WORLD.lift)}lə qalxanda bayırdakı həyatı qapının o tayında qalır.</div>` +
+      (j.memories.length ? j.memories.map(m => `<div class="mem"><small>${when(m.t)} · ${esc(m.kind)}</small>${esc(m.text)}</div>`).join('')
+        : '<div class="mem">Hələ xüsusi bir xatirə yoxdur — onunla danışın və ya tapşırıq verin.</div>');
+  } catch { box.innerHTML = '<div class="hint2">Yaddaş açılmadı.</div>'; }
+}
+
+let lastHist = '';
+function refreshDetail(force) {
+  if (!selected || !sheet.classList.contains('open')) return;
+  const a = selected, st = STATUS[a.status];
+  const nd = sheet.querySelector('#nowDot'); if (!nd) return;
+  nd.style.background = st[1];
+  sheet.querySelector('#nowS').textContent = a.speaking ? 'Sizinlə danışır' : st[0];
+  const cur = a.flashT > 0 ? a.flashText : (a.bubbleText || a.task || '—');
+  const nt = sheet.querySelector('#nowT'); if (nt.textContent !== cur) nt.textContent = cur;
+  const p = a.progress(); sheet.querySelector('#nowP').style.width = (p == null ? 0 : p * 100) + '%';
+  const hs = a.history.slice(0, 8).map(h => h.s ?? h).join('|');
+  if (force || hs !== lastHist) {
+    lastHist = hs;
+    sheet.querySelector('#dH').innerHTML = a.history.length
+      ? a.history.slice(0, 8).map(h => h.file ? `<div>${esc(h.s)} ${fileLink(h.file, h.title)}</div>` : `<div>${esc(h)}</div>`).join('')
+      : '<div class="muted">Bu gün hələ bir iş bitməyib.</div>';
+  }
+}
+
+function refreshPanels() {
+  const counts = {};
+  for (const a of AGENTS) {
+    counts[a.status] = (counts[a.status] || 0) + 1;
+    const re = rowEls[a.id], st = STATUS[a.status];
+    re.dot.style.background = st[1];
+    if (re.st.textContent !== st[0]) re.st.textContent = st[0];
+    const tk = a.flashT > 0 ? a.flashText : (a.bubbleText || a.task);
+    if (re.tk.textContent !== tk) re.tk.textContent = tk;
+  }
+  document.getElementById('stats').innerHTML = Object.entries(STATUS).filter(([k]) => counts[k])
+    .map(([k, v]) => `<span class="chip"><i class="dot" style="background:${v[1]}"></i>${v[0]} <b>${counts[k]}</b></span>`).join('');
+  document.getElementById('clock').textContent = '🕘 ' + clockStr();
+  refreshDetail();
+}
+
+/* ---------- yaxınlaşanda danışmaq ---------- */
+const nearEl = document.getElementById('near');
+let nearAgent = null;
+function updateNear() {
+  let best = null;
+  const camD = camera.position.distanceTo(controls.target);
+  if (!selected && camD < 22) {
+    let bd = 4.2;
+    for (const a of AGENTS) { const d = Math.hypot(a.pos.x - controls.target.x, a.pos.z - controls.target.z); if (d < bd) { bd = d; best = a; } }
+  }
+  if (best === nearAgent) return;
+  nearAgent?.el.classList.remove('near');
+  nearAgent = best;
+  if (best) {
+    best.el.classList.add('near');
+    nearEl.innerHTML = `${best.def.emoji} <span>${esc(best.def.name)} yaxınlıqdadır</span> <button class="btn primary" id="nearGo">💬 Danış</button> <kbd>Enter</kbd>`;
+    nearEl.querySelector('#nearGo').onclick = () => select(best, true);
+    nearEl.classList.add('show');
+  } else nearEl.classList.remove('show');
+}
+
+/* ============================================================
+   KANBAN və DASHBOARD
+============================================================ */
+const KPI = { reach: 1.24e6, ctr: 2.6, roas: 3.8, leads: 1280, hist: Array.from({ length: 16 }, () => rand(35, 70)) };
+function fmt(n) { return n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'K' : Math.round(n) + ''; }
+function drawDash() {
+  const g = dashTex.userData.ctx, w = 1024, h = 444;
+  const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#0f172a'); gr.addColorStop(1, '#1e1b4b'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#e2e8f0'; g.font = '800 30px -apple-system,Segoe UI,Arial'; g.fillText('📊 KAMPANİYA PANELİ', 30, 50);
+  g.fillStyle = '#22c55e'; g.beginPath(); g.arc(w - 120, 40, 7, 0, 7); g.fill(); g.font = '600 20px -apple-system,Segoe UI,Arial'; g.fillStyle = '#94a3b8'; g.fillText('CANLI', w - 104, 47);
+  const tiles = [['Əhatə', fmt(KPI.reach), '#60a5fa'], ['CTR', KPI.ctr.toFixed(2) + '%', '#f472b6'], ['ROAS', KPI.roas.toFixed(1) + '×', '#22c55e'], ['Lead', fmt(KPI.leads), '#fbbf24']];
+  tiles.forEach(([l, v, c], i) => {
+    const x = 30 + i * 245; g.fillStyle = 'rgba(255,255,255,.06)'; rrect(g, x, 72, 228, 108, 14); g.fill();
+    g.fillStyle = '#94a3b8'; g.font = '600 20px -apple-system,Segoe UI,Arial'; g.fillText(l, x + 18, 104);
+    g.fillStyle = c; g.font = '800 44px -apple-system,Segoe UI,Arial'; g.fillText(v, x + 18, 158);
+  });
+  g.fillStyle = 'rgba(255,255,255,.06)'; rrect(g, 30, 198, 964, 222, 14); g.fill();
+  const H = KPI.hist, bw = 964 / H.length;
+  H.forEach((v, i) => { const bh = v * 2.4; const gg = g.createLinearGradient(0, 410 - bh, 0, 410); gg.addColorStop(0, '#818cf8'); gg.addColorStop(1, '#3b82f6'); g.fillStyle = gg; rrect(g, 30 + i * bw + 14, 410 - bh, bw - 28, bh, 6); g.fill(); });
+  g.strokeStyle = '#22c55e'; g.lineWidth = 4; g.beginPath(); H.forEach((v, i) => g.lineTo(30 + i * bw + bw / 2, 400 - v * 2.4 - 14)); g.stroke();
+  dashTex.needsUpdate = true;
+}
+function tickKPI(boost = 0) {
+  KPI.reach *= 1 + rand(0.0005, 0.004) + boost * 0.12;
+  KPI.ctr = clamp(KPI.ctr + rand(-0.04, 0.05) + boost * 0.4, 1.2, 6.5);
+  KPI.roas = clamp(KPI.roas + rand(-0.05, 0.06) + boost * 0.6, 2, 9);
+  KPI.leads += rand(0, 6) + boost * 260;
+  KPI.hist.shift(); KPI.hist.push(clamp(KPI.hist[KPI.hist.length - 1] + rand(-8, 10) + boost * 25, 15, 78));
+  drawDash();
+}
+function note(g, x, y, w, text, dept) {
+  g.fillStyle = new THREE.Color(DEPTS[dept].color).lerp(new THREE.Color('#ffffff'), 0.72).getStyle();
+  g.save(); g.shadowColor = 'rgba(0,0,0,.12)'; g.shadowBlur = 6; g.shadowOffsetY = 2; rrect(g, x, y, w, 40, 6); g.fill(); g.restore();
+  g.fillStyle = DEPTS[dept].color; g.fillRect(x, y + 8, 5, 24);
+  g.fillStyle = '#1f2937'; g.font = '600 19px -apple-system,Segoe UI,Arial';
+  let t = text; while (g.measureText(t).width > w - 26 && t.length > 3) t = t.slice(0, -2);
+  if (t !== text) t = t.trimEnd() + '…';
+  g.fillText(t, x + 14, y + 27);
+}
+let lastKanban = '';
+function drawKanban(force) {
+  const doing = AGENTS.filter(a => ['work', 'campaign', 'assigned'].includes(a.status) && a.task).slice(0, 7).map(a => ({ text: `${a.def.name}: ${a.task}`, dept: a.def.dept }));
+  const key = doing.map(d => d.text).join('|') + DONE.map(d => d.text).join('|');
+  if (!force && key === lastKanban) return; lastKanban = key;
+  const g = kanbanTex.userData.ctx, w = 1024, h = 446;
+  g.fillStyle = '#fbfbf8'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#111827'; g.font = '800 26px -apple-system,Segoe UI,Arial'; g.fillText('📌 TAPŞIRIQ LÖVHƏSİ', 24, 40);
+  const cols = [['PLAN', BACKLOG, '#64748b'], ['İCRADA', doing, '#f97316'], ['HAZIR ✓', DONE.slice(0, 7).map(d => ({ text: `${d.who}: ${d.text}`, dept: d.dept })), '#16a34a']];
+  cols.forEach(([title, items, c], i) => {
+    const x = 20 + i * 334; g.fillStyle = '#f0f2f5'; rrect(g, x, 56, 318, 376, 10); g.fill();
+    g.fillStyle = c; g.font = '800 20px -apple-system,Segoe UI,Arial'; g.fillText(`${title}  ${items.length}`, x + 14, 84);
+    items.slice(0, 7).forEach((it, j) => note(g, x + 10, 98 + j * 47, 298, it.text, it.dept));
+  });
+  kanbanTex.needsUpdate = true;
+}
+
+/* ============================================================
+   SSENARİLƏR: görüş, kampaniya, tapşırıq
+============================================================ */
+let meeting = null;
+async function callMeeting() {
+  if (meeting) { toast('📅 Görüş artıq gedir'); return; }
+  const cmo = byId('cmo');
+  const cands = shuffle(AGENTS.filter(a => a.mode === 'free' && a !== cmo));
+  const parts = cands.slice(0, 6);
+  const m = meeting = { arrived: 0, done: false };
+  const seats = MEET_SEATS.map(s => ({ ...s, busy: null }));
+  log(null, '📅 <b>Planlaşdırma görüşü</b> başlayır — görüş otağına toplaşırlar');
+  const cmoIn = cmo.mode !== 'campaign';
+  if (cmoIn) cmo.run(async () => {
+    await cmo.walkTo(PRESENT.x, PRESENT.z, PRESENT.rot);
+    cmo.status = 'meeting'; cmo.anim = 'present'; cmo.say('📅 Hamı gəldi? Başlayaq!'); m.arrived++;
+    while (!m.done) await cmo.sleep(0.5);
+  }, 'meeting');
+  parts.forEach((a, i) => {
+    const seat = seats[i]; seat.busy = a;
+    a.run(async () => {
+      a.meetSeat = seat;
+      await a.walkTo(seat.x, seat.z, seat.rot, seat.drop);
+      a.status = 'meeting'; a.anim = 'idle'; a.say('📝 Qeyd götürür'); m.arrived++;
+      while (!m.done) await a.sleep(0.5);
+      a.meetSeat = null; seat.busy = null;
+    }, 'meeting');
+  });
+  const expected = parts.length + (cmoIn ? 1 : 0);
+  let t = 0; while (m.arrived < expected && t < 28) { await gsleep(0.5); t += 0.5; }
+  for (const line of PRESENT_LINES) {
+    if (cmo.mode === 'meeting') cmo.say(line);
+    await gsleep(3.2);
+    const p = pick(parts); if (p.mode === 'meeting') p.flash('💬 ' + pick(COMMENTS), 3);
+    await gsleep(1.6);
+  }
+  m.done = true;
+  log(null, '✅ Görüş bitdi — hamı öz masasına qayıdır');
+  await gsleep(1); meeting = null;
+}
+
+let campaign = null;
+const pipeEl = document.getElementById('pipe');
+function renderPipe() {
+  if (!campaign) { pipeEl.classList.add('hidden'); return; }
+  pipeEl.classList.remove('hidden');
+  const done = campaign.step >= PIPE.length;
+  document.getElementById('pipeTitle').innerHTML = `🚀 «${esc(campaign.name)}» <span>${done ? (live.on ? '🎉 Hazırdır!' : '🎉 Yayımlandı!') : `Addım ${campaign.step + 1}/${PIPE.length}`}</span>`;
+  document.getElementById('pipeSteps').innerHTML = PIPE.map((s, i) => {
+    const a = byId(s.id); const cls = i < campaign.step ? 'done' : i === campaign.step ? 'act' : '';
+    return `<span class="ps ${cls}">${i < campaign.step ? '✓' : a.def.emoji} ${esc(a.def.name)} · ${esc(s.task)}</span>`;
+  }).join('');
+}
+// Canlı rejim: hər addım real Claude agentidir, əvvəlki addımın nəticəsi növbətiyə ötürülür.
+async function startCampaignLive(name) {
+  if (campaign) { toast('🚀 Bir kampaniya artıq gedir'); return; }
+  let cid;
+  try { ({ campaignId: cid } = await live.campaign(name)); } catch (e) { toast('⚠️ ' + e.message); return; }
+  campaign = { name, step: 0 }; renderPipe();
+  log(null, `🚀 <b>«${esc(name)}»</b> kampaniyası başladı — ${live.mode === 'live' ? 'real agentlər işləyir' : 'demo'}`);
+  const C = () => (live.camp && live.camp.id === cid ? live.camp : null);
+  const stepOf = i => C()?.steps[i];
+  for (let i = 0; i < PIPE.length; i++) {
+    if (C()?.error) break;
+    campaign.step = i; renderPipe();
+    const st = PIPE[i], a = byId(st.id);
+    const nx = i + 1 < PIPE.length ? byId(PIPE[i + 1].id) : byId('cmo');
+    await a.run(async () => {
+      a.task = `${st.task} («${name}»)`; a.say(`🚀 ${st.task}`);
+      if (!a.atHome()) { await a.goHome(); a.say(`🚀 ${st.task}`); }
+      a.status = 'campaign'; a.anim = 'type';
+      try {
+        while (!stepOf(i)?.done && !C()?.error) {
+          const s = stepOf(i); a.liveProg = s ? Math.min(0.95, 0.04 + s.chars / 1800) : 0.04;
+          if (s?.tail) a.say('✍️ …' + s.tail.replace(/\s+/g, ' ').slice(-70));
+          await a.sleep(0.4);
+        }
+      } finally { a.liveProg = null; }
+      if (C()?.error) { a.anim = 'idle'; a.say('⚠️ Addım alınmadı'); await a.sleep(3); return; }
+      a.completed(`${st.task} — «${name}»`, false, stepOf(i).file);
+      if (nx !== a) {
+        if (i + 1 < PIPE.length) nx.run(async () => {
+          if (!nx.atHome()) await nx.goHome();
+          nx.status = 'campaign'; nx.anim = 'idle'; nx.say('⏳ Təhvil gözləyir…');
+          await nx.sleep(9999);
+        }, 'campaign');
+        const sp = sideSpot(nx);
+        await a.walkTo(sp.x, sp.z, sp.rot);
+        a.anim = 'talk'; a.say(`📦 ${st.out} hazırdır!`);
+        nx.flash(i + 1 < PIPE.length ? '👍 Qəbul etdim, başlayıram!' : '🎉 Əla iş, komanda!', 3);
+        await a.sleep(2.6);
+      }
+    }, 'campaign');
+    // personaj kəsilsə belə (görüş və s.), növbəti addıma server bitirəndən sonra keçirik
+    while (!stepOf(i)?.done && !C()?.error) await gsleep(0.4);
+  }
+  if (C()?.error) {
+    log(null, `⚠️ <b>«${esc(name)}»</b> dayandı: ${esc(C().error)}`); toast('⚠️ Kampaniya dayandı');
+    await gsleep(4); campaign = null; renderPipe(); return;
+  }
+  while (!C()?.done) await gsleep(0.4);
+  campaign.step = PIPE.length; renderPipe();
+  for (let k = 0; k < 4; k++) tickKPI(1);
+  log(null, `🎉 <b>«${esc(name)}»</b> hazırdır! ${fileLink(C().file, `Kampaniya: ${name}`)}`);
+  toast(`🎉 «${name}» kampaniyası hazırdır!`);
+  AGENTS.forEach(a => { if (a.mode === 'free') a.flash(pick(['🎉', '🥳 Bravo!', '🙌', '🚀 Uğurlar!']), 2.5); });
+  await gsleep(8); campaign = null; renderPipe();
+}
+
+async function startCampaign(name) {
+  if (live.on) return startCampaignLive(name);
+  if (campaign) { toast('🚀 Bir kampaniya artıq gedir'); return; }
+  campaign = { name, step: 0 }; renderPipe();
+  log(null, `🚀 <b>«${esc(name)}»</b> kampaniyası başladı — brif CMO-ya gedir`);
+  for (let i = 0; i < PIPE.length; i++) {
+    campaign.step = i; renderPipe();
+    const st = PIPE[i], a = byId(st.id);
+    const nx = i + 1 < PIPE.length ? byId(PIPE[i + 1].id) : byId('cmo');
+    await a.run(async () => {
+      a.task = `${st.task} («${name}»)`; a.say(`🚀 ${st.task}`);
+      if (!a.atHome()) { await a.goHome(); a.say(`🚀 ${st.task}`); }
+      a.status = 'campaign'; a.anim = 'type';
+      await a.sleep(rand(5, 7), true);
+      a.completed(`${st.task} — «${name}»`, true);
+      if (nx !== a) {
+        if (i + 1 < PIPE.length) nx.run(async () => {
+          if (!nx.atHome()) await nx.goHome();
+          nx.status = 'campaign'; nx.anim = 'idle'; nx.say('⏳ Təhvil gözləyir…');
+          await nx.sleep(9999);
+        }, 'campaign');
+        const sp = sideSpot(nx);
+        await a.walkTo(sp.x, sp.z, sp.rot);
+        a.anim = 'talk'; a.say(`📦 ${st.out} hazırdır!`);
+        nx.flash(i + 1 < PIPE.length ? '👍 Qəbul etdim, başlayıram!' : '🎉 Əla iş, komanda!', 3);
+        await a.sleep(2.6);
+      }
+    }, 'campaign');
+  }
+  campaign.step = PIPE.length; renderPipe();
+  for (let k = 0; k < 4; k++) tickKPI(1);
+  log(null, `🎉 <b>«${esc(name)}»</b> yayımlandı! Dashboard yeniləndi 📈`);
+  toast(`🎉 «${name}» kampaniyası yayımlandı!`);
+  AGENTS.forEach(a => { if (a.mode === 'free') a.flash(pick(['🎉', '🥳 Bravo!', '🙌', '🚀 Uğurlar!']), 2.5); });
+  await gsleep(8); campaign = null; renderPipe();
+}
+
+// Canlı rejim: tapşırıq real Claude agentinə gedir; personaj cavab gələnə qədər masasında "yazır".
+async function assignTaskLive(a, text) {
+  let jobId;
+  try { jobId = await live.task(a.id, text); }
+  catch (e) { toast('⚠️ ' + e.message); return; }
+  log(a, `yeni tapşırıq aldı: “${esc(text)}”${live.mode === 'mock' ? ' <i>(demo)</i>' : ''}`);
+  toast(`📝 ${a.def.name} tapşırığı aldı — ${live.mode === 'live' ? 'Claude işləyir' : 'demo'}`);
+  a.run(async () => {
+    const job = () => live.jobs.get(jobId);
+    a.task = text; a.say(`📝 ${text}`);
+    if (!a.atHome()) { await a.goHome(); a.say(`📝 ${text}`); }
+    a.status = 'assigned'; a.anim = 'type';
+    try {
+      while (!job()?.done) {
+        const j = job(); a.liveProg = j ? Math.min(0.95, 0.04 + j.chars / 1800) : 0.04;
+        if (j?.tail) a.say('✍️ …' + j.tail.replace(/\s+/g, ' ').slice(-70));
+        await a.sleep(0.4);
+      }
+    } finally { a.liveProg = null; }
+    a.anim = 'idle';
+    a.say(job().error ? `⚠️ Alınmadı: ${text}` : `✅ Hazırdır: ${text}`);
+    await a.sleep(3);
+  }, 'task');
+}
+live.sub('job', ({ phase, agentId, text, file, error }) => {
+  const a = byId(agentId); if (!a) return;
+  if (phase === 'done') { a.completed(text, true, file); a.flash('✅ Hazırdır!', 2.5); }
+  if (phase === 'error') { log(a, `⚠️ “${esc(text)}” alınmadı: ${esc(error)}`); a.flash('⚠️ Xəta', 3); }
+});
+
+function assignTask(a, text) {
+  if (live.on) return assignTaskLive(a, text);
+  log(a, `yeni tapşırıq aldı: “${esc(text)}”`);
+  toast(`📝 ${a.def.name} tapşırığı aldı`);
+  a.run(async () => {
+    a.task = text; a.say(`📝 ${text}`);
+    if (!a.atHome()) { await a.goHome(); a.say(`📝 ${text}`); }
+    a.status = 'assigned'; a.anim = 'type';
+    await a.sleep(rand(10, 14), true);
+    a.anim = 'idle'; a.say(`✅ Hazırdır: ${text}`); a.completed(text, true);
+    await a.sleep(3);
+  }, 'task');
+}
+
+/* ============================================================
+   KAMERA, KLİK, İDARƏETMƏ
+============================================================ */
+let camAnim = null;
+function tweenCam(toP, toT, dur = 1.1) { camAnim = { fp: camera.position.clone(), ft: controls.target.clone(), tp: toP, tt: toT, t: 0, dur }; }
+function focusOn(a, dist = 17) {
+  const tt = new THREE.Vector3(a.pos.x, 1.2, a.pos.z);
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  if (dir.y < 0.42) { dir.y = 0.42; dir.normalize(); }
+  tweenCam(tt.clone().add(dir.multiplyScalar(dist)), tt);
+}
+const VIEWS = [{ p: [30, 34, 38], t: [0, 0, 0] }, { p: [0, 58, 10], t: [0, 0, 1] }, { p: [-30, 28, 32], t: [-1, 0, 0] }, { p: [0, 12, 30], t: [0, 1, 4] }];
+let viewIdx = 0;
+controls.addEventListener('start', () => { follow = false; camAnim = null; });
+
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
+let downAt = null;
+function pickAgent(e) {
+  mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(hitboxes, false)[0];
+  return hit ? hit.object.userData.agent : null;
+}
+renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const a = pickAgent(e); if (a) select(a, true); else if (selected) select(null);
+});
+let hoverT = 0;
+renderer.domElement.addEventListener('pointermove', e => {
+  const now = performance.now(); if (now - hoverT < 60) return; hoverT = now;
+  renderer.domElement.style.cursor = pickAgent(e) ? 'pointer' : 'grab';
+});
+addEventListener('keydown', e => {
+  const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '');
+  if (e.key === 'Escape') { if (typing) document.activeElement.blur(); select(null); setPanel(false); togglePop('campPop', 'btnCamp', false); }
+  if (e.key === 'Enter' && !typing && nearAgent && !selected) { e.preventDefault(); select(nearAgent, true); }
+});
+
+let simSpeed = 1;
+document.querySelectorAll('#speed button').forEach(b => b.onclick = () => {
+  simSpeed = +b.dataset.s; document.querySelectorAll('#speed button').forEach(x => x.classList.toggle('on', x === b));
+});
+document.getElementById('btnMeet').onclick = () => callMeeting();
+document.getElementById('btnNames').onclick = e => { const on = document.body.classList.toggle('hide-names'); e.currentTarget.classList.toggle('on', !on); };
+document.getElementById('btnCam').onclick = () => { viewIdx = (viewIdx + 1) % VIEWS.length; const v = VIEWS[viewIdx]; follow = false; tweenCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t)); };
+document.getElementById('campForm').onsubmit = e => {
+  e.preventDefault(); const i = document.getElementById('campName');
+  startCampaign(i.value.trim() || pick(['Novruz 2027', 'Yeni il endirimi', 'Black Friday', 'Yay kolleksiyası', 'Brend relaunch'])); i.value = '';
+  togglePop('campPop', 'btnCamp', false);
+};
+document.getElementById('btnTeam').onclick = () => setPanel(!panelEl.classList.contains('open'));
+document.getElementById('btnCamp').onclick = () => { if (togglePop('campPop', 'btnCamp')) setTimeout(() => document.getElementById('campName').focus(), 60); };
+document.getElementById('btnOut').onclick = async () => {
+  if (!togglePop('outPop', 'btnOut')) return;
+  const box = document.getElementById('outItems');
+  if (!live.on) { box.innerHTML = '<div class="muted">Server qoşulu deyil.</div>'; return; }
+  box.innerHTML = '<div class="muted">Yüklənir…</div>';
+  try {
+    const list = await fetch('/api/outputs').then(r => r.json());
+    box.innerHTML = list.length ? list.map(o => `<div data-file="${esc(o.f)}" data-title="${esc(o.f.split('/').pop())}"><span>📄 ${esc(o.f.replace(/^(tapsiriqlar|kampaniyalar)\//, ''))}</span><span class="muted">${new Date(o.t).toLocaleString('az-AZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span></div>`).join('')
+      : '<div class="muted">Hələ hazır iş yoxdur. Kiməsə tapşırıq verin və ya kampaniya başladın.</div>';
+  } catch { box.innerHTML = '<div class="muted">Siyahı açılmadı.</div>'; }
+};
+document.getElementById('btnBook').onclick = () => { togglePop('campPop', 'btnCamp', false); openBook(); };
+if (!bookSeen()) setTimeout(() => openBook('xos'), 900);
+document.getElementById('feedH').onclick = () => document.getElementById('feed').classList.toggle('open');
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight); labelRenderer.setSize(innerWidth, innerHeight);
+});
+
+/* ============================================================
+   BAŞLANĞIC və ƏSAS DÖVRƏ
+============================================================ */
+drawDash(); drawKanban(true);
+for (const a of AGENTS) {
+  a.run(async () => {
+    a.task = pick(a.def.tasks); a.status = 'work'; a.anim = 'type'; a.say(`${a.def.emoji} ${a.task}`);
+    await a.sleep(rand(2, 14), true);
+  }, 'free');
+}
+log(null, `🛗 ${WORLD.lift}in qapısı açıldı — komanda masalarına keçdi. Bayırdakı həyat qapının o tayında qaldı.`);
+live.init().then(() => {
+  if (live.mode === 'live') log(null, '🟢 Canlı rejim: tapşırıqlar real Claude agentlərinə gedir');
+  else if (live.mode === 'mock') log(null, '🟡 Demo rejim: server işləyir, amma Claude-a giriş yoxdur');
+});
+
+const clock = new THREE.Clock();
+let uiT = 0, kpiT = 0, kanT = 0, nextMeet = 55, simT = 0, nearT = 0;
+setTimeout(() => { const l = document.getElementById('loading'); l.style.opacity = 0; setTimeout(() => l.remove(), 500); }, 150);
+setTimeout(() => document.getElementById('hint').style.opacity = 0, 12000);
+
+function animate() {
+  requestAnimationFrame(animate);
+  const rdt = Math.min(clock.getDelta(), 0.1), dt = rdt * simSpeed;
+  simT += dt; simMin += dt;
+  if (simMin >= 19 * 60) { simMin = 9 * 60; log(null, `🌙 Növbə bitdi, ${WORLD.lift} aşağı düşdü… 🛗 Səhər oldu — hamı yenidən masasında, dünən axşamdan heç nə xatırlamır.`); }
+
+  for (const tm of timers) {
+    tm.t -= dt;
+    if (tm.t <= 0) { timers.delete(tm); if (tm.agent && tm.agent.progTimer === tm) tm.agent.progTimer = null; tm.res(); }
+  }
+  for (const a of AGENTS) a.update(dt);
+
+  if (simT > nextMeet) { nextMeet = simT + rand(140, 200); if (!meeting && !campaign) callMeeting(); }
+
+  if (camAnim) {
+    camAnim.t += rdt / camAnim.dur; const e = 1 - Math.pow(1 - Math.min(1, camAnim.t), 3);
+    camera.position.lerpVectors(camAnim.fp, camAnim.tp, e); controls.target.lerpVectors(camAnim.ft, camAnim.tt, e);
+    if (camAnim.t >= 1) camAnim = null;
+  } else if (follow && selected) {
+    const want = new THREE.Vector3(selected.pos.x, 1, selected.pos.z), d = want.sub(controls.target).multiplyScalar(Math.min(1, rdt * 3));
+    controls.target.add(d); camera.position.add(d);
+  }
+  if (selected) selRing.position.set(selected.pos.x, 0.035, selected.pos.z);
+  nearT += rdt; if (nearT > 0.25) { nearT = 0; updateNear(); }
+
+  uiT += rdt; if (uiT > 0.4) { uiT = 0; refreshPanels(); document.body.classList.toggle('far', camera.position.distanceTo(controls.target) > 44); }
+  kpiT += dt; if (kpiT > 2) { kpiT = 0; tickKPI(); }
+  kanT += rdt; if (kanT > 1.5) { kanT = 0; drawKanban(); }
+
+  controls.update();
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>

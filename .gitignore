@@ -1,0 +1,13 @@
+node_modules/
+outputs/
+yaddas/
+.agent-workdir/
+.DS_Store
+
+# Ruflo-nun avtomatik yaratdığı fayllar (commit etməyin, bax docs/RUFLO.md)
+.claude/
+.claude-flow/
+.swarm/
+.agents/
+.mcp.json
+CLAUDE.md

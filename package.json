@@ -1,0 +1,33 @@
+{
+  "name": "marketinq-ofisi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "3D marketinq ofisi: personajlar yaddaşı olan canlı Claude agentləridir (Three.js + Claude Code CLI + Ruflo)",
+  "scripts": {
+    "start": "node server.mjs",
+    "demo": "MOCK=1 node server.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "ruflo": "3.80.9"
+  },
+  "license": "MIT",
+  "keywords": [
+    "ai-agents",
+    "claude",
+    "three.js",
+    "3d",
+    "simulation",
+    "marketing",
+    "ruflo",
+    "agentdb",
+    "azerbaijani"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/<istifadəçi>/marketinq-ofisi.git"
+  }
+}
