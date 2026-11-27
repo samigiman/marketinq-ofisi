@@ -15,7 +15,8 @@ const WORK_WORDS = /kampaniya|tapşırıq|müştəri|brend|büdcə|reklam|post|d
 const BASE = { gundelik: 3, rehber: 6, hadise: 45 };
 
 export function classify(kind, text) {
-  if (kind === 'is' || kind === 'kampaniya' || kind === 'tapşırıq') return 'is';
+  if (kind === 'is' || kind === 'kampaniya' || kind === 'tapşırıq' || kind === 'qayda') return 'is'; // qayda: Rəhbərin iradı, ortaq yaddaşda daimi
+  if (kind === 'xeber') return 'gundelik'; // ofis xəbəri: kim nə bitirdi, kim gəldi-getdi
   if (kind === 'heyet') return 'hadise';
   if (kind === 'sosial') return 'gundelik'; // sosial şəbəkədəki söhbət işdən danışsa da gündəlikdir
   // Rəhbərlə söhbətdə Rəhbərin dediyinə baxırıq (agentin cavabı təsadüfən iş sözü işlədə bilər).

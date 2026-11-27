@@ -106,9 +106,11 @@ export const stopFollow = () => { follow = false; };
 
 function renderOffice() {
   right.innerHTML = `<div class="side-h"><h2>Ofis</h2><button class="iconbtn" id="rX" aria-label="Bağla">${icon('x')}</button></div><div class="scroll"><section class="sec" id="campSec"></section>
+    <section class="sec" id="teamSec"></section>
     <section class="sec"><h3 class="lab">Ofis jurnalı</h3><div class="feed" id="feed">${feed.join('') || '<div class="empty">Hələ heç nə olmayıb.</div>'}</div></section>
+    <section class="sec"><h3 class="lab">Ortaq yaddaş</h3><p class="hint" style="margin:0 0 8px">Ofisdə hamının bildiyi: sizin iradlarınız heç vaxt unudulmur, ofis xəbərləri isə zamanla solur.</p><div class="feed" id="sharedList"><div class="empty">Yüklənir…</div></div></section>
     <section class="sec"><h3 class="lab">Təcrübə kitabı</h3><p class="hint" style="margin:0 0 8px">Bitən hər iş buraya yazılır. Hər kəs işə başlayanda öz sahəsinə aid olanı oxuyur.</p><div class="feed" id="bookList"><div class="empty">Yüklənir…</div></div></section></div>`;
-  loadBook();
+  loadBook(); loadShared(); renderTeams();
   $('rX').onclick = () => setRight(false);
   renderCampaign();
 }
@@ -122,7 +124,7 @@ export function renderCampaign() {
     chip.onclick = () => { select(null); setRight(true); };
   }
   const sec = $('campSec'); if (!sec) return;
-  if (!c) { sec.innerHTML = `<h3 class="lab">Kampaniya</h3><div class="empty">Gedən kampaniya yoxdur. Soldakı <b>Kampaniya başlat</b> ilə başladın.</div>`; return; }
+  if (!c) { sec.innerHTML = `<h3 class="lab">Kampaniya</h3><div class="empty">Gedən kampaniya yoxdur. Aşağıdakı <b>Kampaniya</b> düyməsi ilə başladın.</div>`; return; }
   sec.innerHTML = `<h3 class="lab">Kampaniya: «${esc(c.name)}»</h3>
     ${c.error ? `<p class="small" style="color:var(--err)">${esc(c.error)} ${c.id ? resumeLink(c.id, c.name) : ''}</p>` : ''}
     ${c.done && c.file ? `<p class="small">${fileLink(c.file, `Kampaniya: ${c.name}`, 'Yekun sənədi aç')}</p>` : ''}
@@ -402,9 +404,11 @@ export const selRingFollow = () => { if (selected) selRing.position.set(selected
 
 /* ---------------- dialoqlar ---------------- */
 document.body.insertAdjacentHTML('beforeend', `
-  <div class="dlg" id="campDlg" role="dialog" aria-modal="true" aria-labelledby="campH"><div class="box"><div class="hd"><h3 id="campH">Yeni kampaniya</h3><button class="iconbtn" data-close aria-label="Bağla">${icon('x')}</button></div>
-    <form class="bd" id="campForm"><input type="text" id="campName" placeholder="Kampaniyanın adı, məs: Novruz 2027" autocomplete="off" maxlength="120">
-      <p class="hint">${PIPE.length} nəfər işi bir-birinə təhvil verir: brifdən hesabata qədər. Gedişat sağ paneldə görünür.</p>
+  <div class="dlg" id="campDlg" role="dialog" aria-modal="true" aria-labelledby="campH"><div class="box"><div class="hd"><h3 id="campH">Böyük iş</h3><button class="iconbtn" data-close aria-label="Bağla">${icon('x')}</button></div>
+    <form class="bd" id="campForm">
+      <div class="seg" role="radiogroup" aria-label="İşin növü"><label><input type="radio" name="cmode" value="team" checked> Komanda işi</label><label><input type="radio" name="cmode" value="camp"> Kampaniya</label></div>
+      <input type="text" id="campName" placeholder="məs: Yay endirimi üçün Instagram postu və slogan" autocomplete="off" maxlength="300">
+      <p class="hint" id="campHint"></p><div class="route" id="campRoute"></div>
       <p style="margin:16px 0 0;display:flex;justify-content:flex-end;gap:8px"><button type="button" class="btn" data-close>Ləğv et</button><button class="btn primary">Başlat</button></p></form></div></div>
   <div class="dlg" id="outDlg" role="dialog" aria-modal="true" aria-labelledby="outH"><div class="box"><div class="hd"><h3 id="outH">Hazır işlər</h3><button class="iconbtn" data-close aria-label="Bağla">${icon('x')}</button></div><div class="bd outs" id="outItems"></div></div></div>
   <div class="dlg" id="pcDlg" role="dialog" aria-modal="true" aria-labelledby="pcH"><div class="box"><div class="hd"><h3 id="pcH">Kompüter</h3><button class="iconbtn" data-close aria-label="Bağla">${icon('x')}</button></div>
@@ -412,10 +416,34 @@ document.body.insertAdjacentHTML('beforeend', `
 const closeDlg = () => { document.querySelectorAll('.dlg.show').forEach(d => d.classList.remove('show')); pcOpenFor = null; };
 document.querySelectorAll('.dlg').forEach(d => { d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) closeDlg(); }); });
 
-$('btnCamp').onclick = () => { $('campDlg').classList.add('show'); setTimeout(() => $('campName').focus(), 50); };
-$('campForm').onsubmit = e => {
-  e.preventDefault(); const i = $('campName');
-  startCampaign(i.value.trim() || pick(['Novruz 2027', 'Yeni il endirimi', 'Yay kolleksiyası']));
+// Komanda işi: CMO bölür, hissələr eyni vaxtda gedir. Kampaniya: hamı ardıcıl təhvil verir.
+const cmode = () => document.querySelector('input[name=cmode]:checked')?.value || 'team';
+function campHint() {
+  $('campHint').textContent = cmode() === 'team'
+    ? 'Elvin işi hissələrə bölür, ən uyğun 2–4 nəfər eyni vaxtda işləyir, sonra o birləşdirir. Kimin uyğun olduğu sizin qiymətlərinizdən öyrənilir.'
+    : `${PIPE.length} nəfər işi bir-birinə təhvil verir: brifdən hesabata qədər. Ad yazın, məs: Novruz 2027.`;
+  $('campRoute').innerHTML = ''; if (cmode() === 'team') routePreview();
+}
+let routeT = null;
+function routePreview() {
+  clearTimeout(routeT);
+  routeT = setTimeout(async () => {
+    const text = $('campName').value.trim();
+    if (!live.on || cmode() !== 'team' || text.length < 4) { $('campRoute').innerHTML = ''; return; }
+    const list = await live.route(text).catch(() => []);
+    $('campRoute').innerHTML = list.length ? `<span>Bu iş üçün ən uyğun:</span> ${list.slice(0, 4).map(x => `<span class="chip" title="${esc(x.role)}${x.ok + x.redo ? ` · qəbul ${x.ok}, geri ${x.redo}` : ''}">${esc(x.name)} <b>${Math.round(x.score * 100)}</b></span>`).join('')}` : '';
+  }, 350);
+}
+document.querySelectorAll('input[name=cmode]').forEach(r => (r.onchange = campHint));
+$('campName').oninput = () => cmode() === 'team' && routePreview();
+$('btnCamp').onclick = () => { $('campDlg').classList.add('show'); campHint(); setTimeout(() => $('campName').focus(), 50); };
+$('campForm').onsubmit = async e => {
+  e.preventDefault(); const i = $('campName'), v = i.value.trim();
+  if (cmode() === 'team') {
+    if (!live.on) { toast('Komanda işi server qoşulu olanda işləyir'); return; }
+    if (!v) { i.focus(); return; }
+    try { await live.team(v); } catch (err) { toast(err.message); return; }
+  } else startCampaign(v || pick(['Novruz 2027', 'Yeni il endirimi', 'Yay kolleksiyası']));
   i.value = ''; closeDlg(); select(null); setRight(true);
 };
 $('btnMeet').onclick = () => callMeeting();
@@ -460,6 +488,43 @@ export function stepCamera(rdt) {
 export function deselect() { if (!selected) return; select(null); $('right').classList.remove('open'); $('dLog').classList.remove('on'); }
 
 renderTeam();
+
+async function loadShared() {
+  const el = $('sharedList'); if (!el) return;
+  if (!live.on) { el.innerHTML = '<div class="empty">Server işləyəndə görünür.</div>'; return; }
+  const list = (await fetch('/api/shared').then(r => r.json()).catch(() => [])).filter(m => m.stage !== 'unudulub');
+  el.innerHTML = list.length ? list.slice(0, 12).map(m => `<div class="${m.stage === 'dumanlı' ? 'muted' : ''}">${m.kind === 'qayda' ? '<b>Qayda</b> · ' : ''}${esc(m.shown)}</div>`).join('')
+    : '<div class="empty">Hələ ortaq heç nə yoxdur. İşə qiymət verib irad yazanda burada görünəcək.</div>';
+}
+
+// Komanda işləri: plan, hissələr, birləşdirmə. Server hadisələrindən yenilənir.
+const teamsView = new Map();
+async function renderTeams() {
+  const el = $('teamSec'); if (!el) return;
+  if (live.on && !teamsView.size) for (const t of await fetch('/api/teams').then(r => r.json()).catch(() => [])) teamsView.set(t.id, t);
+  const list = [...teamsView.values()].sort((a, b) => b.at - a.at).slice(0, 4);
+  if (!list.length) { el.innerHTML = ''; return; }
+  const ST = { planning: 'bölünür', running: 'işlənir', merging: 'birləşdirilir', done: 'hazırdır', error: 'alınmadı' };
+  el.innerHTML = `<h3 class="lab">Komanda işləri</h3>` + list.map(t => `<div class="team-card">
+      <div class="tc-h"><b>${esc(t.text)}</b><span class="stg">${ST[t.status] || t.status}</span></div>
+      ${(t.parts || []).map(p => `<div class="tc-p"><span>${esc(byId(p.agentId)?.def.name || p.agentId)}</span><span class="muted">${esc(p.task)}</span>${p.file ? `<a href="#" data-file="${esc(p.file)}" data-title="${esc(p.task)}">aç</a>` : ''}</div>`).join('')}
+      ${t.file ? `<p style="margin:8px 0 0"><button class="btn sm primary" type="button" data-file="${esc(t.file)}" data-title="${esc(t.text)}">Yekun nəticə</button></p>` : t.error ? `<p class="small muted">${esc(t.error)}</p>` : ''}
+    </div>`).join('');
+}
+live.sub('team', ev => {
+  const t = teamsView.get(ev.teamId) || { id: ev.teamId, text: ev.text, lead: ev.lead, status: 'planning', parts: [], at: Date.now() };
+  if (ev.parts) t.parts = ev.parts;
+  t.status = { start: 'planning', plan: 'running', merging: 'merging', done: 'done', error: 'error' }[ev.phase] || t.status;
+  if (ev.file) t.file = ev.file; if (ev.error) t.error = ev.error;
+  teamsView.set(t.id, t);
+  const lead = byId(ev.lead);
+  if (ev.phase === 'plan') log(lead, `komanda işini böldü: ${ev.parts.map(p => esc(byId(p.agentId)?.def.name || p.agentId)).join(', ')}`);
+  if (ev.phase === 'done') { log(lead, `komanda işini birləşdirdi: “${esc(ev.text)}”`); toast('Komanda işi hazırdır'); }
+  if (ev.phase === 'error') toast('Komanda işi alınmadı: ' + ev.error);
+  renderTeams();
+});
+live.sub('job', ev => { if (ev.team && teamsView.has(ev.team)) { const t = teamsView.get(ev.team), p = t.parts.find(x => x.jobId === ev.jobId || (x.agentId === ev.agentId && !x.file)); if (p && ev.phase === 'done') { p.file = ev.file; renderTeams(); } } });
+live.sub('feedback', ev => { const a = byId(ev.agentId); log(a, ev.verdict === 'ok' ? `işini bəyəndiniz: “${esc(ev.text)}”` : `işini geri qaytardınız: “${esc(ev.text)}”${ev.note ? ` (${esc(ev.note)})` : ''}`); a?.flash(ev.verdict === 'ok' ? 'Sağ olun!' : 'Başa düşdüm, düzəldirəm', 3); loadShared(); });
 
 async function loadBook() {
   const el = $('bookList'); if (!el) return;

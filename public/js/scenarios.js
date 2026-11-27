@@ -213,6 +213,16 @@ async function assignTaskLive(a, text, opts = {}) {
   catch (e) { hooks.toast(e.message); return; }
   hooks.log(a, `tapşırıq aldı: “${esc(text)}”${live.mode === 'mock' ? ' (demo)' : ''}`);
   hooks.toast(`${a.def.name} tapşırığı aldı`);
+  workOn(a, jobId, text);
+}
+// Server özü başlatdığı işlər (komanda hissələri, Rəhbərin geri qaytardığı işin yeni variantı): personaj masasına keçib işləyir.
+live.sub('job', ({ phase, jobId, agentId, text, team, revision, merge }) => {
+  if (phase !== 'start' || !(team || revision)) return;
+  const a = byId(agentId); if (!a) return;
+  hooks.log(a, revision ? `“${esc(text)}” işini yenidən edir` : merge ? `komandanın hissələrini birləşdirir: “${esc(text)}”` : `komanda işində öz hissəsini götürdü: “${esc(text)}”`);
+  workOn(a, jobId, text);
+});
+function workOn(a, jobId, text) {
   a.run(async () => {
     const job = () => live.jobs.get(jobId);
     a.task = text; a.say(text);

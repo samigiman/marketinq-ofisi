@@ -35,6 +35,9 @@ live.task = async (agentId, text, docs = false) => {
   return jobId;
 };
 live.campaign = async (name) => post('/api/campaign', { name });
+live.team = async (text) => post('/api/team', { text });
+live.feedback = async (file, verdict, note) => post('/api/feedback', { file, verdict, note });
+live.route = async (text) => fetch('/api/route?text=' + encodeURIComponent(text), { cache: 'no-store' }).then(r => (r.ok ? r.json() : []));
 live.resume = async (campaignId) => post('/api/campaign/resume', { campaignId });
 live.staff = async () => fetch('/api/staff', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
 live.hire = async id => post('/api/staff/hire', { id });
@@ -114,7 +117,7 @@ live.init = async () => {
       fire('hello', ev);
       return;
     }
-    if (ev.type === 'pc' || ev.type === 'chat' || ev.type === 'staff' || ev.type === 'social') { fire(ev.type, ev); return; }
+    if (ev.type === 'pc' || ev.type === 'chat' || ev.type === 'staff' || ev.type === 'social' || ev.type === 'team' || ev.type === 'feedback') { fire(ev.type, ev); return; }
     if (ev.type === 'job') {
       let j = live.jobs.get(ev.jobId);
       if (!j) live.jobs.set(ev.jobId, (j = { agentId: ev.agentId, text: ev.text, chars: 0, tail: '', done: false }));
@@ -144,15 +147,20 @@ const css = `
 #outModal.show{display:grid}
 #outModal .box{width:min(780px,calc(100% - 32px));max-height:calc(100% - 48px);display:flex;flex-direction:column;background:var(--bg-raised);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-pop);overflow:hidden}
 #outModal .hd{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
-#outModal .hd b{flex:1;font-size:15px;font-weight:600}
-#outModal .hd small{color:var(--ink-2);font:12px var(--mono)}
+#outModal .hd b{flex:1;min-width:0;font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#outModal .hd small{flex:0 1 auto;min-width:0;max-width:38%;color:var(--ink-2);font:12px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;direction:rtl;text-align:left}
 #outModal .bd{overflow:auto;padding:16px 22px 24px;font-size:14px;line-height:1.6;white-space:pre-wrap;color:var(--ink)}
 #outModal .bd h1,#outModal .bd h2,#outModal .bd h3{margin:.7em 0 .2em;line-height:1.3;font-weight:600}
 #outModal .bd h1{font-size:20px}#outModal .bd h2{font-size:17px}#outModal .bd h3{font-size:15px}
 #outModal .bd hr{border:0;border-top:1px solid var(--line);margin:12px 0}
+#outModal .ft{display:none;gap:8px;align-items:flex-start;padding:12px 16px;border-top:1px solid var(--line);background:var(--bg)}
+#outModal .ft.show{display:flex}
+#outModal .ft textarea{flex:1;min-height:40px;max-height:120px;resize:vertical;font:13px/1.4 inherit;font-family:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg-raised);color:var(--ink)}
+#outModal .ft .done{flex:1;font-size:13px;color:var(--ink-2);padding:8px 0}
+#outModal .ft .done b{color:var(--ink)}
 `;
 document.head.insertAdjacentHTML('beforeend', `<style>${css}</style>`);
-document.body.insertAdjacentHTML('beforeend', `<div id="outModal" role="dialog" aria-modal="true" aria-labelledby="outT"><div class="box"><div class="hd"><b id="outT"></b><small id="outF"></small><button id="outCopy" class="btn">Kopyala</button><button id="outX" class="iconbtn" aria-label="Bağla"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="bd" id="outB"></div></div></div>`);
+document.body.insertAdjacentHTML('beforeend', `<div id="outModal" role="dialog" aria-modal="true" aria-labelledby="outT"><div class="box"><div class="hd"><b id="outT"></b><small id="outF"></small><button id="outCopy" class="btn">Kopyala</button><button id="outX" class="iconbtn" aria-label="Bağla"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="bd" id="outB"></div><div class="ft" id="outFb"></div></div></div>`);
 const modal = document.getElementById('outModal');
 const escH = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // sadə markdown: başlıqlar, qalın, xətt — qalanı olduğu kimi
@@ -165,9 +173,32 @@ live.open = async (file, title = '') => {
   document.getElementById('outF').textContent = 'outputs/' + file;
   document.getElementById('outB').textContent = 'Yüklənir…';
   modal.classList.add('show');
+  const fb = document.getElementById('outFb'); fb.classList.remove('show'); fb.innerHTML = '';
   try { rawText = await fetch('/api/output?f=' + encodeURIComponent(file)).then(r => (r.ok ? r.text() : Promise.reject())); document.getElementById('outB').innerHTML = md(rawText); }
-  catch { document.getElementById('outB').textContent = 'Fayl açılmadı.'; }
+  catch { document.getElementById('outB').textContent = 'Fayl açılmadı.'; return; }
+  renderFeedback(file);
 };
+// Rəhbərin qiyməti: Qəbul et / Yenidən et (irad ilə). İşçi bundan öyrənir.
+async function renderFeedback(file) {
+  const fb = document.getElementById('outFb');
+  let st; try { st = await fetch('/api/rating?f=' + encodeURIComponent(file), { cache: 'no-store' }).then(r => r.json()); } catch { return; }
+  if (!st.rateable) return;
+  fb.classList.add('show');
+  if (st.rating) {
+    fb.innerHTML = `<div class="done"><b>${st.rating.verdict === 'ok' ? 'Qəbul etmisiniz' : 'Geri qaytarmısınız'}</b>${st.rating.note ? `: ${escH(st.rating.note)}` : ''}</div>`;
+    return;
+  }
+  fb.innerHTML = `<textarea id="fbNote" maxlength="300" placeholder="Qısa irad və ya tərif (istəyə görə). Məs: çox uzundur, rəqəm əlavə et"></textarea>
+    <button class="btn" id="fbRedo" type="button">Yenidən et</button><button class="btn primary" id="fbOk" type="button">Qəbul et</button>`;
+  const send = async verdict => {
+    const note = document.getElementById('fbNote').value.trim();
+    fb.querySelectorAll('button').forEach(b => (b.disabled = true));
+    try { await live.feedback(file, verdict, note); renderFeedback(file); }
+    catch (e) { fb.querySelectorAll('button').forEach(b => (b.disabled = false)); document.getElementById('fbNote').placeholder = e.message; }
+  };
+  document.getElementById('fbOk').onclick = () => send('ok');
+  document.getElementById('fbRedo').onclick = () => send('redo');
+}
 document.getElementById('outX').onclick = () => modal.classList.remove('show');
 modal.onclick = e => { if (e.target === modal) modal.classList.remove('show'); };
 addEventListener('keydown', e => { if (e.key === 'Escape') modal.classList.remove('show'); });

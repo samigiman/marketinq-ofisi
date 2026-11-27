@@ -103,6 +103,15 @@ Açılan linkdə istifadəçi adı `rehber`, şifrə `SOCIAL_PASSWORD`-dur (uzun
 
 Tapşırıqda agentlər internetdə axtarış edir və saytları oxuyur (`WEB=0` söndürür). Kompüterinizdəki marketinq skill-ləri (`~/.claude/plugins`, və ya `SKILLS_DIR`) hər rola uyğun iş metodikası kimi əlavə olunur.
 
+### Rəhbərin qiyməti, komanda işi və ortaq yaddaş
+
+İdeyalar [Ruflo](https://github.com/ruvnet/ruflo)-nun hive-mind, ortaq yaddaş və Q-learning marşrutlaşdırmasından götürülüb, amma işi Ruflo yox, ofisin öz sandbox-u görür. Ruflo-nun `hive-mind` əmri Claude Code-u `--dangerously-skip-permissions` ilə açır və işçilərin hekayəsini pozardı.
+
+- **Qəbul et / Yenidən et.** Hər nəticənin altında. İrad yazmaq olar. Qəbul əhvalı qaldırır, geri qaytarmaq endirir və işçi iradı nəzərə alıb dərhal yeni variant hazırlayır. Qiymət işçinin daimi xatirəsi olur, son iradlar hər işdə ona xatırladılır. Çox iş geri qaytarılanda işdən çıxarılmaqdan qorxur.
+- **Kimə verim?** ([router.mjs](router.mjs)) Kimin hansı iş növündə güclü olduğu əvvəl roldan götürülür, sonra sizin qiymətlərinizdən öyrənilir (Q-learning: `Q ← Q + 0.35·(r − Q)`). Kampaniya pəncərəsində yazdıqca ən uyğun adamlar görünür.
+- **Komanda işi.** Kampaniya pəncərəsində "Komanda işi": Elvin (CMO) işi 2–4 hissəyə bölür, hissələr eyni vaxtda müxtəlif işçilərin kompüterində görülür (`MAX_PARALLEL` limiti ilə), sonra o birləşdirir. Yekuna da qiymət vermək olar. `TEAM_MAX` (default 4) ən çox hissə sayıdır.
+- **Ortaq yaddaş.** Sizin iradlarınız bütün ofisin daimi qaydası olur, hamı Rəhbərin zövqünü öyrənir. Kim nəyi bitirdi kimi ofis xəbərləri isə gündəlik xatirə kimi solur. Ofis panelində görünür.
+
 ### Ortaq qovluq: Google Drive və Canva
 
 Tapşırıq formasında "Ortaq qovluqdan material götür" işarələnəndə, agent işə başlamazdan əvvəl ayrıca axtarış Drive və Canva hesablarınızdan tapşırığa aid materialları tapır. Agent onları şirkətin ortaq qovluğundan gələn sənəd kimi alır.

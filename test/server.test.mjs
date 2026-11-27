@@ -297,3 +297,45 @@ test('yaddaş: eyni anda yazılan xatirələr ayrı açar alır', async () => {
     assert.equal(new Set(items.map(x => x.id)).size, 3);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('geri bildiriş: qəbul əhvalı qaldırır, yenidən et iradla yeni variant başladır, marşrut öyrənir, irad ortaq yaddaşa düşür', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    const done1 = waitEvent(s.base, ev => ev.type === 'job' && ev.phase === 'done' && ev.agentId === 'copy');
+    await post(s.base, '/api/task', { agentId: 'copy', text: 'Yeni il üçün slogan' });
+    const f1 = (await done1).file;
+    assert.equal((await fetch(s.base + '/api/rating?f=' + encodeURIComponent(f1)).then(r => r.json())).rateable, true);
+    const before = (await fetch(s.base + '/api/route?text=' + encodeURIComponent('slogan yaz')).then(r => r.json())).find(x => x.id === 'copy').score;
+
+    const redoDone = waitEvent(s.base, ev => ev.type === 'job' && ev.phase === 'done' && ev.agentId === 'copy' && /_duzelis/.test(ev.file || ''));
+    const r = await post(s.base, '/api/feedback', { file: f1, verdict: 'redo', note: 'Çox uzundur, qısa yaz' }).then(r => r.json());
+    assert.ok(r.jobId, 'yeni variant başlayır');
+    assert.equal((await post(s.base, '/api/feedback', { file: f1, verdict: 'ok' })).status, 409, 'iki dəfə qiymət olmur');
+    const f2 = (await redoDone).file;
+    const after = (await fetch(s.base + '/api/route?text=' + encodeURIComponent('slogan yaz')).then(r => r.json())).find(x => x.id === 'copy').score;
+    assert.ok(after < before, 'geri qaytarılan iş marşrut balını endirir');
+
+    assert.equal((await post(s.base, '/api/feedback', { file: f2, verdict: 'ok', note: 'Belə yaxşıdır' })).status, 200);
+    const shared = await fetch(s.base + '/api/shared').then(r => r.json());
+    assert.ok(shared.some(x => /qısa yaz/.test(x.text) && x.stage === 'is'), 'irad ortaq yaddaşda daimi qalır');
+    const mem = await fetch(s.base + '/api/agent?id=copy').then(r => r.json());
+    assert.ok(mem.memories.some(m => /geri qaytardı/.test(m.text) && m.stage === 'is'));
+    assert.equal((await post(s.base, '/api/feedback', { file: 'yoxdur.md', verdict: 'ok' })).status, 404);
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('komanda tapşırığı: bölünür, hissələr paralel gedir, rəhbər birləşdirir', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    const done = waitEvent(s.base, ev => ev.type === 'team' && (ev.phase === 'done' || ev.phase === 'error'), 60000);
+    const r = await post(s.base, '/api/team', { text: 'Yay kampaniyası üçün Instagram post və slogan' }).then(r => r.json());
+    assert.equal(r.lead, 'cmo');
+    const ev = await done;
+    assert.equal(ev.phase, 'done', ev.error);
+    assert.ok(ev.parts.length >= 2 && ev.parts.every(p => p.agentId !== 'cmo' && p.file));
+    const md = await fetch(s.base + '/api/output?f=' + encodeURIComponent(ev.file)).then(r => r.text());
+    assert.match(md, /Marketinq Direktoru/);
+    assert.match(md, /Yay kampaniyası üçün Instagram post və slogan/);
+    assert.equal((await fetch(s.base + '/api/rating?f=' + encodeURIComponent(ev.file)).then(r => r.json())).rateable, true);
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
