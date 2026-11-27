@@ -5,6 +5,10 @@ import { findPath } from './nav.js';
 import { SEATS, POIS } from './office.js';
 import { PI, rand, pick, lerp, clamp, wrapA, hash, esc, clockStr, hooks, fileLink, shuffle } from './util.js';
 import { TEAM, DEPTS } from '../team.js';
+import { loadPeople, buildPerson, applyPose } from './people.js';
+
+// skeletli modellər; yüklənməsə köhnə sadə fiqurlar qalır
+const RIGGED = await loadPeople().then(() => true, e => { console.warn('Modellər yüklənmədi, sadə fiqurlar işlənir', e); return false; });
 
 export const STATUS = {
   work:     ['İşləyir', '#2f7d5b'],
@@ -80,6 +84,12 @@ export class Agent {
   build() {
     const d = this.def, L = d.look;
     const g = this.group = new THREE.Group(); scene.add(g);
+    if (RIGGED) {
+      this.rig = buildPerson(d, this.color); g.add(this.rig.root);
+      this.eyes = []; this.mouth = null;
+      const hb = new THREE.Mesh(hitGeo, hitMat); hb.position.y = 1.1; hb.userData.agent = this; g.add(hb); hitboxes.push(hb);
+      return;
+    }
     const top = M(this.color, { r: 0.9 }), skin = M(L.skin, { r: 0.7 }), hair = M(L.hair, { r: 0.85 });
     const pants = M(L.pants || PANTS[hash(d.id) % PANTS.length]), shoe = M('#1d1e1f');
     const hip = 0.92;
@@ -230,17 +240,18 @@ export class Agent {
     this.sit += clamp(this.sitTarget - this.sit, -dt * 4, dt * 4);
     const s = this.sit, walking = this.path.length > 0 && s <= 0.15;
     const sw = walking ? Math.sin(this.walkPhase) * 0.5 : 0;
-    this.legL.rotation.x = lerp(sw, -1.45, s); this.legR.rotation.x = lerp(-sw, -1.45, s);
     const bob = walking ? Math.abs(Math.cos(this.walkPhase)) * 0.035 : 0;
-    this.group.position.set(this.pos.x, this.sitDrop * s + bob, this.pos.z);
     this.rot += wrapA(this.targetRot - this.rot) * Math.min(1, dt * 9);
     this.group.rotation.y = this.rot;
-
-    let aL = 0, aR = 0, zL = -0.05, zR = 0.05, hx = 0, hy = Math.sin(this.t * 0.4 + this.seed) * 0.12, hz = 0;
     if (this.faceBoss && !walking) {
       const tgt = Math.atan2(camera.position.x - this.pos.x, camera.position.z - this.pos.z);
       this.targetRot = this.rot + wrapA(tgt - this.rot) * 0.6;
     }
+    if (this.rig) { this.updateRig(dt, s, walking, sw, bob); if (this.flashT > 0) this.flashT -= dt; this.updateLabel(); return; }
+    this.legL.rotation.x = lerp(sw, -1.45, s); this.legR.rotation.x = lerp(-sw, -1.45, s);
+    this.group.position.set(this.pos.x, this.sitDrop * s + bob, this.pos.z);
+
+    let aL = 0, aR = 0, zL = -0.05, zR = 0.05, hx = 0, hy = Math.sin(this.t * 0.4 + this.seed) * 0.12, hz = 0;
     if (walking) { aL = -sw * 0.8; aR = sw * 0.8; }
     else switch (this.anim) {
       case 'type': aL = -1.2 + Math.sin(this.t * 16) * 0.05; aR = -1.2 + Math.sin(this.t * 16 + 2) * 0.05; zL = 0.15; zR = -0.15; hx = 0.1; hy *= 0.3; break;
@@ -264,6 +275,30 @@ export class Agent {
     this.head.rotation.x += (hx - this.head.rotation.x) * k; this.head.rotation.y += (hy - this.head.rotation.y) * k; this.head.rotation.z += (hz - this.head.rotation.z) * k;
     if (this.flashT > 0) this.flashT -= dt;
     this.updateLabel();
+  }
+  // Skeletli model: hər kadr sümük pozası. Dəyərlər hamar keçidlə (this.P) hədəfə yaxınlaşır.
+  updateRig(dt, s, walking, sw, bob) {
+    const t = this.t;
+    const T = { aL: 0.05, aR: 0.05, zL: 0, zR: 0, eL: -0.15, eR: -0.15, hx: 0, hy: Math.sin(t * 0.4 + this.seed) * 0.12, hz: 0, lean: 0 };
+    if (walking) { T.aL = -sw * 0.6; T.aR = sw * 0.6; T.eL = T.eR = -0.25; }
+    else switch (this.anim) {
+      case 'type': T.aL = T.aR = -0.55; T.eL = T.eR = -1.15; T.zL = T.zR = 0.05; T.eL += Math.sin(t * 16) * 0.05; T.eR += Math.sin(t * 16 + 2) * 0.05; T.hx = 0.12; T.hy *= 0.3; T.lean = 0.08; break;
+      case 'think': T.aR = -0.9; T.eR = -2.3; T.zR = 0.25; T.aL = -0.35; T.eL = -1.4; T.hz = 0.08; T.hx = -0.06; break;
+      case 'talk': T.aL = -0.3 + Math.sin(t * 3) * 0.25; T.eL = -0.9 + Math.sin(t * 2.4) * 0.3; T.aR = -0.4 + Math.sin(t * 3.7 + 1) * 0.3; T.eR = -1.0 + Math.sin(t * 2.9) * 0.3; T.hy = Math.sin(t * 1.5) * 0.18; break;
+      case 'present': T.aR = -1.3 + Math.sin(t * 1.8) * 0.25; T.eR = -0.4; T.zR = -0.3; T.aL = -0.2; break;
+      case 'drink': T.aR = -0.7 + Math.sin(t * 0.8) * 0.1; T.eR = -2.0; T.zR = 0.15; break;
+      case 'phone': T.aR = -0.5; T.eR = -2.1; T.zR = 0.3; T.aL = -0.4; T.eL = -1.3; T.hx = 0.3; T.hy = 0; break;
+    }
+    if (this.waveT > 0) { this.waveT -= dt; T.aR = -2.6; T.zR = -0.5; T.eR = -0.6 + Math.sin(t * 12) * 0.35; }
+    const P = (this.P ||= { ...T }), k = Math.min(1, dt * 10);
+    for (const key in T) P[key] += (T[key] - P[key]) * k;
+    applyPose(this.rig, {
+      legL: lerp(sw, -1.5, s), legR: lerp(-sw, -1.5, s),
+      kneeL: lerp(Math.max(0, sw) * 0.9, 1.5, s), kneeR: lerp(Math.max(0, -sw) * 0.9, 1.5, s),
+      ...P,
+    });
+    // oturanda omba oturacağa düşür (model hündür: köhnə fiqurdan bir az aşağı)
+    this.group.position.set(this.pos.x, (this.sitDrop - 0.12) * s + bob, this.pos.z);
   }
   progress() { if (this.liveProg != null) return this.liveProg; return this.progTimer ? clamp(1 - this.progTimer.t / this.progTimer.dur, 0, 1) : null; }
   updateLabel() {

@@ -382,7 +382,7 @@ const snapshot = () => ({
 });
 
 /* ---------------- HTTP ---------------- */
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.gltf': 'model/gltf+json', '.bin': 'application/octet-stream' };
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
 async function body(req) {
   let s = ''; for await (const c of req) { s += c; if (s.length > 20000) throw new Error('Çox böyük sorğu'); }

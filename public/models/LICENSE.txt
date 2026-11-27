@@ -1,0 +1,2 @@
+Universal Base Characters [Standard] — Quaternius (https://quaternius.com)
+License: CC0 1.0 Universal (public domain). Normal/roughness maps removed, textures resized for the web.
