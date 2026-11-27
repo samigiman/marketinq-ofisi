@@ -169,7 +169,14 @@ function experienceBlock(agent, short = false) {
 }
 staff.hired = staff.hired.filter(id => TEAM.some(t => t.id === id) && !EXCLUDED.has(id));
 const isHired = id => staff.hired.includes(id);
-const saveStaff = () => writeFile(STAFF_FILE, JSON.stringify(staff, null, 1)).catch(() => {});
+// Yazmalar növbə ilə gedir və hər biri əvvəl müvəqqəti fayla, sonra rename ilə: eyni anda iki writeFile
+// (məs. iş bitəndə təcrübə sayı və çıxarma) faylı qarışdırırdı, köhnə vəziyyət yenisinin üstünə düşürdü.
+let staffWrite = Promise.resolve();
+const saveStaff = () => (staffWrite = staffWrite.then(async () => {
+  const tmp = `${STAFF_FILE}.${process.pid}.tmp`;
+  await writeFile(tmp, JSON.stringify(staff, null, 1));
+  await rename(tmp, STAFF_FILE);
+}).catch(() => {}));
 const staffView = () => ({
   edition: EDITION, hired: staff.hired,
   candidates: TEAM.filter(t => !isHired(t.id) && !EXCLUDED.has(t.id)).map(t => t.id),
