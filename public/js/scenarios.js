@@ -1,6 +1,6 @@
 // Ssenarilər: görüş, kampaniya, tapşırıq; divardakı lövhə və ekran.
 import { THREE, FONT } from './kit.js';
-import { kanbanTex, dashTex, MEET_SEATS, PRESENT } from './office.js';
+import { kanbanTex, dashTex, meetingSpots } from './office.js';
 import { AGENTS, byId, gsleep, sideSpot, DONE, BACKLOG } from './agents.js';
 const nextHired = i => { for (let k = i + 1; k < PIPE.length; k++) if (byId(PIPE[k].id).hired) return k; return -1; };
 import { rand, pick, clamp, shuffle, esc, hooks, fileLink } from './util.js';
@@ -70,9 +70,10 @@ export let meeting = null;
 export async function callMeeting() {
   if (meeting) { hooks.toast('Görüş artıq gedir'); return; }
   const cmo = byId('cmo');
-  const parts = shuffle(AGENTS.filter(a => a.mode === 'free' && a !== cmo)).slice(0, 6);
+  const parts = shuffle(AGENTS.filter(a => a.mode === 'free' && a.hired && a !== cmo)).slice(0, 6);
   const m = meeting = { arrived: 0, done: false };
-  const seats = MEET_SEATS.map(s => ({ ...s, busy: null }));
+  const spots = meetingSpots(), PRESENT = spots.present;
+  const seats = spots.seats.map(s => ({ ...s, busy: null }));
   hooks.log(null, '<b>Planlaşdırma görüşü</b> başlayır, komanda görüş otağına keçir');
   const cmoIn = cmo.mode !== 'campaign';
   if (cmoIn) cmo.run(async () => {

@@ -7,7 +7,7 @@
 
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { readFile, writeFile, mkdir, readdir, stat, rename } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, readdir, stat, rename, appendFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -97,15 +97,64 @@ const release = () => { const n = waiting.shift(); n ? n() : running--; };
 const EDITION = process.env.EDITION === 'public' ? 'public' : 'private';
 const EXCLUDED = new Set(EDITION === 'public' ? PUBLIC_EXCLUDED : []);
 const STAFF_FILE = path.join(OUT, 'heyet.json');
-const staff = { hired: [], left: [] }; // left: [{ id, at }] — son çıxarılanlar
+// left: son çıxarılanlar; mood: əhval {v, at, why}; exp: görülən iş sayı; past: əvvəl işləyib-çıxanlar {id: {fired}}
+const staff = { hired: [], left: [], mood: {}, exp: {}, past: {} };
 try { Object.assign(staff, JSON.parse(await readFile(STAFF_FILE, 'utf8'))); } catch { staff.hired = [...START_STAFF]; }
+for (const k of ['mood', 'exp', 'past']) staff[k] ||= {};
+
+/* ---------------- əhval ---------------- */
+// Əhval 0..1. Hadisədən sonra zamanla 0.7-yə qayıdır (MOOD_TAU dəqiqə; ofisdə bir gün ~10 real dəqiqədir).
+const MOOD_TAU = (+process.env.MOOD_TAU || 40) * 60 * 1000;
+const moodNow = id => { const m = staff.mood[id]; if (!m) return 0.7; return 0.7 + (m.v - 0.7) * Math.exp(-(Date.now() - m.at) / MOOD_TAU); };
+const moodLabel = v => (v >= 0.78 ? 'yaxşı' : v >= 0.58 ? 'normal' : v >= 0.38 ? 'narahat' : 'pis');
+function shiftMood(id, d, why) {
+  const v = Math.max(0.05, Math.min(1, moodNow(id) + d));
+  // xoş xəbər əhvalı hələ düzəltməyibsə, səbəb köhnə (pis) hadisə olaraq qalır
+  const keep = d > 0 && v < 0.58 && staff.mood[id]?.why;
+  staff.mood[id] = { v, at: Date.now(), why: keep ? staff.mood[id].why : why };
+}
+const moodView = () => Object.fromEntries(staff.hired.map(id => [id, { v: +moodNow(id).toFixed(2), label: moodLabel(moodNow(id)), why: staff.mood[id]?.why || '' }]));
+
+/* ---------------- təcrübə ---------------- */
+// Hər bitən iş agentliyin ümumi təcrübə kitabına yazılır; hər kəs işə başlayanda öz sahəsinə aid olanı oxuyur.
+const BOOK_FILE = path.join(OUT, 'tecrube.jsonl');
+const book = [];
+try { book.push(...(await readFile(BOOK_FILE, 'utf8')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)).slice(-400)); } catch {}
+function addExperience(agentId, task, output, kind) {
+  const a = TEAM.find(t => t.id === agentId); if (!a) return;
+  staff.exp[agentId] = (staff.exp[agentId] || 0) + 1; saveStaff();
+  const e = { at: Date.now(), agentId, dept: a.dept, kind, task: String(task).slice(0, 160), summary: String(output).replace(/[#*_`>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 280) };
+  book.push(e); if (book.length > 400) book.shift();
+  appendFile(BOOK_FILE, JSON.stringify(e) + '\n').catch(() => {});
+}
+const levelOf = id => { const n = staff.exp[id] || 0; return n >= 10 ? 'usta' : n >= 3 ? 'təcrübəli' : 'yeni'; };
+function experienceBlock(agent, short = false) {
+  const n = staff.exp[agent.id] || 0, lv = levelOf(agent.id);
+  const lines = [lv === 'yeni' ? `Bu agentlikdə hələ yenisən (${n} iş): ehtiyatlısan, işi diqqətlə görürsən, lazım olanda həmkarlarından soruşursan.`
+    : lv === 'təcrübəli' ? `Bu agentlikdə artıq ${n} iş görmüsən: işin necə getdiyini, müştərilərin zövqünü bilirsən.`
+    : `Bu agentlikdə ${n} iş görmüsən, ustasan: öz yanaşman formalaşıb, cəsarətlə təklif verirsən, yeniləri istiqamətləndirirsən.`];
+  if (staff.past[agent.id]?.fired) lines.push(`Səni əvvəl ${staff.past[agent.id].fired} dəfə işdən çıxarıblar, sonra geri götürüblər. Rəhbərə tam güvənmirsən, amma bu şansı qiymətləndirirsən.`);
+  const m = moodNow(agent.id);
+  lines.push(`İndiki əhvalın: ${moodLabel(m)}${staff.mood[agent.id]?.why && Math.abs(m - 0.7) > 0.08 ? ` (${staff.mood[agent.id].why})` : ''}. Bu, danışığında və işində yüngülcə hiss olunsun.`);
+  if (!short) {
+    const own = book.filter(e => e.agentId === agent.id).slice(-3);
+    const dept = book.filter(e => e.dept === agent.dept && e.agentId !== agent.id).slice(-4);
+    const other = book.filter(e => e.dept !== agent.dept).slice(-2);
+    const fmt = e => `${nameOf(e.agentId)}: "${e.task}" → ${e.summary}`;
+    const all = [...own, ...dept, ...other];
+    if (all.length) lines.push(`\nAgentliyin təcrübə kitabından (əvvəl görülən işlər, onlardan öyrən, təkrarlama):\n- ${all.map(fmt).join('\n- ')}`);
+  }
+  return '\n' + lines.join('\n');
+}
 staff.hired = staff.hired.filter(id => TEAM.some(t => t.id === id) && !EXCLUDED.has(id));
 const isHired = id => staff.hired.includes(id);
 const saveStaff = () => writeFile(STAFF_FILE, JSON.stringify(staff, null, 1)).catch(() => {});
 const staffView = () => ({
   edition: EDITION, hired: staff.hired,
   candidates: TEAM.filter(t => !isHired(t.id) && !EXCLUDED.has(t.id)).map(t => t.id),
-  left: staff.left.slice(-5),
+  left: staff.left.slice(-5), mood: moodView(),
+  exp: Object.fromEntries(TEAM.map(t => [t.id, { n: staff.exp[t.id] || 0, level: levelOf(t.id) }])),
+  past: Object.keys(staff.past).filter(id => staff.past[id].fired), book: book.length,
 });
 
 const colleagues = () => TEAM.filter(t => isHired(t.id)).map(t => `${t.name} (${t.role})`).join(', ');
@@ -144,6 +193,7 @@ function chatSystem(agent, company, mem, activity) {
   return [
     worldRules(agent),
     activity ? `\nİndi etdiyin iş: ${activity}.` : '',
+    experienceBlock(agent, true),
     mem,
     company ? `\nŞirkətin müştərisi və brend haqqında bildiklərin:\n${company}` : '',
     '\nSöhbət qaydası: Azərbaycan dilində, öz danışıq tərzində yaz. Qısa: 1–4 cümlə, canlı insan kimi.',
@@ -157,6 +207,7 @@ function systemPrompt(agent, company, mem = '') {
   const d = DEPTS[agent.dept];
   return [
     worldRules(agent),
+    experienceBlock(agent),
     mem,
     `\nİndi iş rejimindəsən: Rəhbər sənə tapşırıq verib. Bacarıqların: ${agent.skills.join(', ')}.`,
     'Həmişə Azərbaycan dilində, peşəkar və konkret yaz. Öz peşəkar fikrin var: tapşırıqda zəif yer görürsənsə, bunu nəticənin sonunda qısa qeyd et.',
@@ -277,7 +328,7 @@ async function runTask(agentId, text) {
       const dir = path.join(OUT, 'tapsiriqlar'); await mkdir(dir, { recursive: true });
       job.file = path.join('tapsiriqlar', `${stamp()}_${agentId}_${slug(text)}.md`);
       await writeFile(path.join(OUT, job.file), `# ${agent.name} · ${agent.role}\n\n**Tapşırıq:** ${text}\n\n---\n\n${job.output}\n`);
-      job.status = 'done';
+      job.status = 'done'; addExperience(agentId, text, job.output, 'tapşırıq');
       if (claudeState.mode === 'live') memory.remember(agentId, `Rəhbər mənə tapşırıq verdi: "${text}". Hazırladım: ${job.output.replace(/[#*_]/g, '').slice(0, 260)}`, 'is');
       emit({ type: 'job', phase: 'done', jobId: job.id, agentId, text, output: job.output, file: job.file });
     } catch (e) {
@@ -367,7 +418,7 @@ function driveCampaign(camp) {
         if (!output) throw lastErr;
         const file = path.join('kampaniyalar', camp.dir, `${String(i + 1).padStart(2, '0')}-${st.id}.md`);
         await writeFile(path.join(OUT, file), `# ${i + 1}. ${agent.name} · ${agent.role}\n\n**${st.task}** → ${st.out}\n\n---\n\n${output}\n`);
-        camp.steps.push({ agentId: st.id, output, file });
+        camp.steps.push({ agentId: st.id, output, file }); addExperience(st.id, `${st.task} («${camp.name}»)`, output, 'kampaniya');
         await saveCampaign(camp);
         if (claudeState.mode === 'live') memory.remember(st.id, `«${camp.name}» kampaniyasında "${st.task}" işini gördüm${i + 1 < PIPE.length ? `, sonra ${byId[PIPE[i + 1].id].name}-a təhvil verdim` : ''}. Əsas fikir: ${output.replace(/[#*_]/g, '').slice(0, 200)}`, 'kampaniya');
         emit({ type: 'campaign', phase: 'step-done', campaignId: camp.id, step: i, agentId: st.id, task: st.task, out: st.out, output, file });
@@ -449,6 +500,7 @@ const server = http.createServer(async (req, res) => {
     }
     // heyət: kim işləyir, kim namizəddir; işə götür və çıxar
     if (url.pathname === '/api/staff') return json(res, 200, staffView());
+    if (url.pathname === '/api/experience') return json(res, 200, book.slice(-60).reverse().map(e => ({ ...e, name: nameOf(e.agentId) })));
     const sAct = url.pathname.match(/^\/api\/staff\/(hire|fire)$/)?.[1];
     if (sAct && req.method === 'POST') {
       const { id } = await body(req); const agent = byId[id];
@@ -456,17 +508,23 @@ const server = http.createServer(async (req, res) => {
       if (sAct === 'hire') {
         if (EXCLUDED.has(id)) return json(res, 403, { error: 'Bu versiyada bu vəzifəyə işçi götürülmür' });
         if (isHired(id)) return json(res, 409, { error: `${agent.name} artıq bizdə işləyir` });
-        const back = staff.left.some(l => l.id === id);
+        const back = !!staff.past[id]?.fired;
+        for (const o of staff.hired) shiftMood(o, 0.06, `${agent.name} komandaya qoşuldu`);
+        staff.mood[id] = { v: back ? 0.55 : 0.8, at: Date.now(), why: back ? 'geri qayıtdın, hələ özünü tam rahat hiss etmirsən' : 'yeni işdəsən, həyəcanlısan' };
         staff.hired.push(id); staff.left = staff.left.filter(l => l.id !== id); await saveStaff();
         memory.remember(id, back ? `${WORLD.boss} məni yenidən işə götürdü. Əvvəl işdən çıxarılmışdım, bu dəfə özümü sübut etməliyəm.` : `Bu gün ${WORLD.company}-də ilk iş günüm idi. ${WORLD.boss} məni ${agent.role} vəzifəsinə götürdü.`, 'heyet');
-        emit({ type: 'staff', phase: 'hire', agentId: id, back });
+        emit({ type: 'staff', phase: 'hire', agentId: id, back, mood: moodView() });
       } else {
         if (id === 'cmo') return json(res, 409, { error: 'Elvin agentliyin direktorudur, onu çıxarmaq olmaz' });
         if (!isHired(id)) return json(res, 409, { error: `${agent.name} bizdə işləmir` });
-        staff.hired = staff.hired.filter(x => x !== id); staff.left.push({ id, at: Date.now() }); staff.left = staff.left.slice(-10); await saveStaff();
+        staff.hired = staff.hired.filter(x => x !== id); staff.left.push({ id, at: Date.now() }); staff.left = staff.left.slice(-10);
+        staff.past[id] = { fired: (staff.past[id]?.fired || 0) + 1, at: Date.now() };
+        // dostları daha çox sarsılır (münasibətlərində adı keçənlər)
+        for (const o of staff.hired) { const close = (PERSONAS[o]?.ties || '').includes(agent.name) || (PERSONAS[id]?.ties || '').includes(nameOf(o)); shiftMood(o, close ? -0.35 : -0.2, `${agent.name} işdən çıxarıldı${close ? ', o sənə yaxın idi' : ''}`); }
+        await saveStaff();
         memory.remember(id, `${WORLD.boss} məni işdən çıxardı. Bu, gözlənilməz və ağır oldu.`, 'heyet');
         for (const other of staff.hired) memory.remember(other, `${agent.name} (${agent.role}) işdən çıxarıldı. Ofisdə hamı narahatdır, növbəti kim olacaq?`, 'heyet');
-        emit({ type: 'staff', phase: 'fire', agentId: id });
+        emit({ type: 'staff', phase: 'fire', agentId: id, mood: moodView() });
       }
       return json(res, 200, staffView());
     }

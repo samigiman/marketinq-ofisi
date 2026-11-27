@@ -209,3 +209,32 @@ test('ictimai versiya: dijital marketoloq və reklam verənlər heç cür işə 
     }
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });
+
+test('əhval, təcrübə kitabı, səviyyə və yenidən işə götürmə', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    let st = await fetch(s.base + '/api/staff').then(r => r.json());
+    assert.equal(st.mood.copy.label, 'normal');
+    assert.equal(st.exp.copy.level, 'yeni');
+
+    // iş bitəndə təcrübə artır və kitaba düşür
+    const done = waitEvent(s.base, ev => ev.type === 'job' && ev.phase === 'done');
+    await post(s.base, '/api/task', { agentId: 'copy', text: 'Novruz sloqanı' });
+    await done;
+    st = await fetch(s.base + '/api/staff').then(r => r.json());
+    assert.equal(st.exp.copy.n, 1);
+    const book = await fetch(s.base + '/api/experience').then(r => r.json());
+    assert.equal(book[0].agentId, 'copy'); assert.match(book[0].task, /Novruz/);
+
+    // çıxarmaq hamının əhvalını düşürür, dostlarınkını daha çox
+    st = await post(s.base, '/api/staff/fire', { id: 'copy' }).then(r => r.json());
+    assert.ok(st.mood.smm.v < 0.6, 'komanda narahatdır');
+    assert.ok(st.mood.artdir.v < st.mood.smm.v, 'Leyla Muradın yaxın dostudur, daha çox sarsılır');
+    assert.ok(st.past.includes('copy'));
+
+    // geri götürülən küskün başlayır
+    st = await post(s.base, '/api/staff/hire', { id: 'copy' }).then(r => r.json());
+    assert.ok(st.mood.copy.v < 0.6);
+    assert.equal(st.exp.copy.n, 1, 'təcrübə itmir');
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});

@@ -26,6 +26,13 @@ Bu sənəd personajların kim olduğunu təsvir edir. Promptları dəyişəndə 
 - İşləməyən adamla danışmaq və ona tapşırıq vermək olmur; kampaniyada onun addımı keçilir.
 - İctimai versiya (`EDITION=public`): Dijital Marketoloq, Tarqetoloq və PPC-çi (`PUBLIC_EXCLUDED`) heç cür işə götürülə bilməz.
 
+## Əhval, təcrübə, ofisin böyüməsi
+- **Əhval** (0..1, serverdə): işə götürmə hamını bir az qaldırır; çıxarma hamını, yaxın dostları daha çox düşürür. Zamanla normala qayıdır (`MOOD_TAU`, default 40 dəqiqə). Promptda və davranışda görünür: pis əhvalda az işləyir, çox fasilə verir, qaşqabaqlıdır, narahat fikirlər söyləyir.
+- **Təcrübə kitabı** (`outputs/tecrube.jsonl`): bitən hər iş və kampaniya addımı yazılır. Tapşırıq alan personaj öz işlərindən, şöbəsindən və başqa şöbələrdən son nümunələri oxuyur. İşdən çıxarılanların işi də kitabda qalır.
+- **Səviyyə**: görülən iş sayına görə yeni (0–2), təcrübəli (3–9), usta (10+). Promptda müstəqilliyi və cəsarəti dəyişir.
+- **Yenidən işə götürmə**: çıxarılanlar "əvvəl burada işləyib" işarəsi ilə namizəddir. Geri gələn təcrübəsini saxlayır, amma narahat başlayır və Rəhbərə tam güvənmir.
+- **Ofis böyüyür**: 7 nəfərə qədər kiçik otaq, 13-ə qədər yan otaqlar (görüş otağı, kabinələr), sonra bütün mərtəbə (studiya, böyük launj, stolüstü tennis). Kiçiləndə də bağlanır.
+
 ## Rəhbər
 - İstifadəçi agentliyi açan və idarə edən **Rəhbər**dir.
 - Ona hörmət edirlər, amma yaltaqlanmırlar: razı olmayanda açıq deyir, səbəbini izah edir, öz variantını təklif edirlər.

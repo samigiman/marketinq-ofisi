@@ -2,9 +2,9 @@
 import { THREE, scene, camera, M, box, cyl, sph } from './kit.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { findPath } from './nav.js';
-import { SEATS, POIS, setDesk, assignSeat, releaseSeat } from './office.js';
+import { SEATS, POIS, setDesk, assignSeat, releaseSeat, poiOpen, setStage, stageFor, STAGE } from './office.js';
 import { PI, rand, pick, lerp, clamp, wrapA, hash, esc, clockStr, hooks, fileLink, shuffle } from './util.js';
-import { TEAM, DEPTS } from '../team.js';
+import { TEAM, DEPTS, PERSONAS } from '../team.js';
 import { buildCute } from './cute.js';
 
 export const STATUS = {
@@ -46,6 +46,7 @@ const ASK = {
   composer: ['jingle-ın demosu var?', 'musiqi bir az sürətli olsun'],
 };
 const REPLIES = ['Hə, indi baxıram', 'Bir saata hazırdır', 'Yaxşı fikirdir', 'Razıyam, edək', 'Artıq hazırdır', 'Bir az vaxt ver', 'Qeyd etdim', 'Sabaha qalsın?'];
+const WORRIES = ['Növbəti mən olmayım…', 'Rəhbər məndən razıdır görəsən?', 'Bu gün diqqətimi toplaya bilmirəm', 'Başqa yerə CV göndərim?', 'Ofis əvvəlki kimi deyil'];
 const THOUGHTS = ['Daha güclü ideya lazımdır', 'Insight axtarıram', 'Bunu necə sadələşdirim?', 'Auditoriya nə istəyir?', 'Başqa tərəfdən baxım'];
 
 // Geyim: hər personaja öz rəngi (departament rəngi yox). Bəzilərinə xüsusi.
@@ -85,6 +86,8 @@ export class Agent {
     g.add(parts.root);
     Object.assign(this, { legL: parts.legL, legR: parts.legR, armL: parts.armL, armR: parts.armR, head: parts.head, eyes: parts.eyes, mouth: parts.mouth });
     const hb = new THREE.Mesh(hitGeo, hitMat); hb.position.y = 0.9; hb.userData.agent = this; g.add(hb); hitboxes.push(hb);
+    // işdən çıxanda əlində apardığı qutu
+    this.boxMesh = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.3, 0.34), M('#b8936b')); this.boxMesh.position.set(0, 0.92, 0.34); this.boxMesh.visible = false; this.boxMesh.castShadow = true; g.add(this.boxMesh);
   }
   buildLabel() {
     const el = document.createElement('div'); el.className = 'lbl';
@@ -142,14 +145,17 @@ export class Agent {
   }
 
   /* --- gündəlik həyat --- */
+  // əhval: 0..1 (serverdən); pis əhvalda az işləyir, çox fasilə verir və fikrə gedir
+  get moodV() { return this.mood?.v ?? 0.7; }
   async routine() {
     if (!this.atHome()) await this.goHome();
     this.sitTarget = 1;
     while (true) {
-      const r = Math.random();
-      if (r < 0.5) await this.doWork();
-      else if (r < 0.63) await this.doThink();
-      else if (r < 0.8) await this.doCollab();
+      const r = Math.random(), low = this.moodV < 0.45, high = this.moodV > 0.8;
+      const W = low ? 0.33 : high ? 0.56 : 0.5, T = W + (low ? 0.22 : 0.13), Co = T + (low ? 0.12 : 0.17);
+      if (r < W) await this.doWork(low ? rand(8, 16) : undefined);
+      else if (r < T) await this.doThink();
+      else if (r < Co) await this.doCollab();
       else await this.doBreak();
     }
   }
@@ -160,7 +166,8 @@ export class Agent {
     this.completed(task);
   }
   async doThink() {
-    this.status = 'think'; this.anim = 'think'; this.say(pick(THOUGHTS));
+    const low = this.moodV < 0.45;
+    this.status = 'think'; this.anim = 'think'; this.say(low ? pick(WORRIES) : pick(THOUGHTS));
     await this.sleep(rand(4, 7));
   }
   async doCollab() {
@@ -180,7 +187,7 @@ export class Agent {
     await this.goHome();
   }
   async doBreak() {
-    const opts = POIS.filter(p => !p.busy && !(p.id === 'studio' && this.id === 'composer'));
+    const opts = POIS.filter(p => !p.busy && poiOpen(p));
     if (!opts.length) return this.doThink();
     const p = pick(opts); p.busy = this; this.poi = p;
     await this.walkTo(p.x, p.z, p.rot, p.drop ?? null);
@@ -218,7 +225,9 @@ export class Agent {
     this.group.position.set(this.pos.x, (this.sitDrop + 0.22) * s + bob, this.pos.z);
 
     let aL = 0, aR = 0, zL = -0.05, zR = 0.05, hx = 0, hy = Math.sin(this.t * 0.4 + this.seed) * 0.12, hz = 0;
-    if (walking) { aL = -sw * 0.8; aR = sw * 0.8; }
+    this.boxMesh.visible = !!this.carry;
+    if (this.carry) { aL = aR = -1.35; zL = 0.32; zR = -0.32; }
+    else if (walking) { aL = -sw * 0.8; aR = sw * 0.8; }
     else switch (this.anim) {
       case 'type': aL = -1.2 + Math.sin(this.t * 16) * 0.05; aR = -1.2 + Math.sin(this.t * 16 + 2) * 0.05; zL = 0.15; zR = -0.15; hx = 0.1; hy *= 0.3; break;
       case 'think': aR = -2.3; zR = -0.4; aL = -0.5; zL = 0.3; hz = 0.1; hx = -0.08; break;
@@ -235,6 +244,7 @@ export class Agent {
     for (const e of this.eyes) e.scale.y += (ey - e.scale.y) * kk;
     const talking = this.speaking || (this.anim === 'talk' && !walking);
     this.mouth.scale.set(1, talking ? 1 + Math.abs(Math.sin(this.t * 12)) * 2.5 : 1, 1);
+    this.mouth.rotation.z = this.moodV < 0.45 && !talking ? 0 : Math.PI; // pis əhvalda qaşqabaq
     const k = Math.min(1, dt * 10);
     this.armL.rotation.x += (aL - this.armL.rotation.x) * k; this.armR.rotation.x += (aR - this.armR.rotation.x) * k;
     this.armL.rotation.z += (zL - this.armL.rotation.z) * k; this.armR.rotation.z += (zR - this.armR.rotation.z) * k;
@@ -272,19 +282,23 @@ export function sideSpot(b) {
 for (const def of TEAM) AGENTS.push(new Agent(def, SEATS[def.id]));
 
 /* ---------------- heyət: kim ofisdədir ---------------- */
-export const ENTRY = { x: -6, z: 13.2 }; // giriş: cənub tərəfdə
+export const ENTRY = { x: -14, z: 13.3 }; // giriş: kiçik otağın cənubunda
 export const isHired = id => AGENTS.find(a => a.id === id)?.hired;
 function show(a, on) {
   if (on) a.seat = assignSeat(a.id); else releaseSeat(a.id); // masa yeri: ilk boş yer
   a.group.visible = on; a.labelObj.visible = on; setDesk(a.id, on);
 }
 // ilk yükləmədə: animasiyasız
+// ofisin mərhələsi işçi sayına görə; böyüyəndə hooks.onStage xəbər verir
+function fitStage(count, animate) { const prev = STAGE.cur; if (setStage(stageFor(count), animate) && animate) hooks.onStage?.(STAGE.cur, prev); }
 export function initStaff(ids) {
+  fitStage(ids.length, false);
   for (const a of AGENTS) if (!ids.includes(a.id)) { a.hired = false; show(a, false); a.interrupt(); a.mode = 'away'; a.status = 'away'; a.task = ''; }
   for (const id of ids) { const a = byId(id); if (!a) continue; a.hired = true; show(a, true); a.pos.set(a.seat.x, 0, a.seat.z); a.rot = a.targetRot = a.seat.rot; }
 }
 // serverdən gələn siyahı ilə tutuşdur (animasiyasız)
 export function syncStaff(ids) {
+  fitStage(ids.length, false);
   for (const a of AGENTS) if (!ids.includes(a.id) && a.hired) { a.hired = false; a.interrupt(); show(a, false); a.mode = 'away'; a.status = 'away'; a.task = ''; }
   for (const id of ids) {
     const a = byId(id); if (!a || a.hired) continue;
@@ -292,24 +306,51 @@ export function syncStaff(ids) {
   }
 }
 // işə götürüldü: girişdən içəri girir və masasına keçir
+// yaxınlar: münasibətlərində bir-birinin adı keçənlər, sonra eyni şöbə
+const closeTo = a => AGENTS.filter(o => o !== a && o.hired && ((PERSONAS[o.id]?.ties || '').includes(a.def.name) || (PERSONAS[a.id]?.ties || '').includes(o.def.name)));
+export function setMoods(m) { for (const a of AGENTS) if (m?.[a.id]) a.mood = m[a.id]; }
+
+// işə götürüldü: girişdən içəri girir, masasına keçir, Elvin və bir-iki həmkarı qarşılayır
 export function arrive(a, back = false) {
   if (a.hired) return;
+  fitStage(AGENTS.filter(o => o.hired).length + 1, true);
   a.hired = true; a.pos.set(ENTRY.x, 0, ENTRY.z); a.sit = 0; a.sitTarget = 0; show(a, true);
   a.run(async () => {
-    a.say(back ? 'Yenidən buradayam' : 'Salam, bu gün ilk günümdür');
-    await a.goHome(); a.anim = 'idle'; a.flash(back ? 'Bu dəfə özümü göstərəcəm' : 'Masam buradır?', 3); await a.sleep(3);
+    a.say(back ? 'Yenidən buradayam…' : 'Salam, bu gün ilk günümdür');
+    await a.goHome(); a.anim = 'idle'; a.faceBoss = false;
+    a.flash(back ? 'Bu dəfə özümü göstərəcəm' : 'Masam buradır?', 3); await a.sleep(9);
   }, 'free');
+  const hosts = [AGENTS.find(o => o.id === 'cmo'), ...closeTo(a), ...shuffle(AGENTS.filter(o => o.hired && o.def.dept === a.def.dept && o !== a))]
+    .filter((o, i, arr) => o && o.hired && o !== a && o.mode === 'free' && arr.indexOf(o) === i).slice(0, 3);
+  hosts.forEach((o, i) => o.run(async () => {
+    await o.sleep(2 + i * 1.5);
+    const sp = sideSpot(a); await o.walkTo(sp.x + (i - 1) * 0.6, sp.z + (i - 1) * 0.3, sp.rot);
+    o.status = 'chat'; o.anim = 'talk'; o.waveT = 1.2;
+    o.say(back ? pick(['Xoş gördük yenidən', 'Qayıtdın? Yaxşı oldu', 'Səni darıxmışdıq']) : o.id === 'cmo' ? `Xoş gəldin, ${a.def.name}. Deməli belə, burada…` : pick(['Xoş gəldin!', 'Kömək lazım olsa, de', 'Qəhvə maşını oradadır']));
+    await o.sleep(4); await o.goHome();
+  }, 'free'));
 }
-// işdən çıxarıldı: əşyalarını yığır və gedir
+// işdən çıxarıldı: əşyalarını qutuya yığır, dostları qapıya qədər ötürür, qalanlar sarsılır
 export function leave(a) {
   if (!a.hired) return;
   a.hired = false;
+  const friends = [...closeTo(a), ...shuffle(AGENTS.filter(o => o.hired && o !== a && o.def.dept === a.def.dept))].filter((o, i, arr) => o.mode === 'free' && arr.indexOf(o) === i).slice(0, 2);
   a.run(async () => {
     a.status = 'away'; a.anim = 'idle'; a.say('Əşyalarımı yığıram'); await a.sleep(3);
-    await a.walkTo(ENTRY.x, ENTRY.z); show(a, false); a.mode = 'away'; a.task = '';
+    setDesk(a.id, false); a.carry = true; a.anim = 'carry';
+    a.say('Hamıya uğurlar…');
+    await a.walkTo(ENTRY.x, ENTRY.z); a.carry = false; await a.sleep(2.5);
+    show(a, false); a.mode = 'away'; a.task = '';
+    fitStage(AGENTS.filter(o => o.hired).length, true);
     await a.sleep(1e9);
   }, 'away');
-  for (const o of AGENTS) if (o !== a && o.hired && o.mode === 'free' && Math.random() < 0.5) o.flash(['Ciddi?', 'Növbəti kim olacaq…', 'Yazıq oldu', 'Bunu gözləmirdim'][Math.floor(Math.random() * 4)], 3.5);
+  friends.forEach((o, i) => o.run(async () => {
+    await o.sleep(3.5);
+    await o.walkTo(ENTRY.x + (i ? 1.2 : -1.2), ENTRY.z - 1.0, PI);
+    o.status = 'chat'; o.anim = 'talk'; o.say(pick(['Səni darıxacağıq', 'Əlaqədə qalaq', 'Bu düzgün olmadı', 'Uğurlar, dostum']));
+    await o.sleep(5); await o.goHome();
+  }, 'free'));
+  for (const o of AGENTS) if (o !== a && o.hired && o.mode === 'free' && !friends.includes(o) && Math.random() < 0.5) o.flash(pick(['Ciddi?', 'Növbəti kim olacaq…', 'Yazıq oldu', 'Bunu gözləmirdim']), 3.5);
 }
 export const byId = id => AGENTS.find(a => a.id === id);
 export { DEPTS };

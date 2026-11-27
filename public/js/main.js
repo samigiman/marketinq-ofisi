@@ -1,7 +1,7 @@
 // Başlanğıc, klik və əsas dövr.
 import { THREE, renderer, labelRenderer, scene, camera, controls } from './kit.js';
-import { screenMeshes } from './office.js';
-import { AGENTS, timers, hitboxes, initStaff, syncStaff, arrive, leave, byId } from './agents.js';
+import { screenMeshes, updateOffice, STAGE } from './office.js';
+import { AGENTS, timers, hitboxes, initStaff, syncStaff, arrive, leave, byId, setMoods } from './agents.js';
 import { flush, loadAll } from './monitors.js';
 import { updateCat, catHit, meow } from './cat.js';
 import { drawDash, drawKanban, tickKPI, callMeeting, meeting, camp, followCampaign, resumeLink } from './scenarios.js';
@@ -60,15 +60,18 @@ live.init().then(async () => {
   if (!live.on) return;
   loadAll();
   const st = await live.staff().catch(() => null);
-  if (st) { syncStaff(st.hired); renderTeam(st); }
+  if (st) { syncStaff(st.hired); setMoods(st.mood); renderTeam(st); }
+  // əhval zamanla dəyişir (sakitləşir): hərdən yenilə
+  setInterval(async () => { const s2 = await live.staff().catch(() => null); if (s2) { setMoods(s2.mood); renderTeam(s2); } }, 45000);
   const last = (await live.campaigns().catch(() => []))[0];
   if (last && ['interrupted', 'error'].includes(last.status))
     log(null, `<b>«${esc(last.name)}»</b> ${last.steps.length}/${last.total} addımda yarımçıq qalıb. ${resumeLink(last.id, last.name)}`);
 });
 if (!bookSeen()) setTimeout(() => openBook('xos'), 900);
 // işə götürmə / çıxarma (başqa pəncərədən də gələ bilər)
-live.sub('staff', ({ phase, agentId, back }) => {
+live.sub('staff', ({ phase, agentId, back, mood }) => {
   const a = byId(agentId); if (!a) return;
+  setMoods(mood);
   if (phase === 'hire') { arrive(a, back); log(a, back ? 'yenidən işə götürüldü' : `işə götürüldü: ${esc(a.def.role)}`); }
   if (phase === 'fire') { if (selected?.id === a.id) deselect(); leave(a); log(a, 'işdən çıxarıldı'); }
   renderTeam();
@@ -89,7 +92,7 @@ function animate() {
     if (tm.t <= 0) { timers.delete(tm); if (tm.agent && tm.agent.progTimer === tm) tm.agent.progTimer = null; tm.res(); }
   }
   for (const a of AGENTS) if (a.hired || a.group.visible) a.update(dt);
-  updateCat(dt);
+  updateCat(dt); updateOffice(rdt);
   if (simT > nextMeet) { nextMeet = simT + rand(140, 200); if (!meeting && !camp.cur) callMeeting(); }
   stepCamera(rdt);
   nearT += rdt; if (nearT > 0.25) { nearT = 0; updateNear(); }

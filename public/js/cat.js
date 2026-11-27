@@ -2,7 +2,7 @@
 import { THREE, scene } from './kit.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { findPath } from './nav.js';
-import { CAT_BED, POIS } from './office.js';
+import { CAT_BED, POIS, poiOpen } from './office.js';
 import { toon } from './cute.js';
 import { AGENTS } from './agents.js';
 import { rand, pick, wrapA, hooks } from './util.js';
@@ -43,9 +43,9 @@ function decide() {
   const people = AGENTS.filter(a => a.hired && a.mode === 'free');
   if (r < 0.3 && !slept) { go(CAT_BED.x, CAT_BED.z); near = 'bed'; slept = true; return; }
   slept = false;
-  if (r < 0.3) { const p = pick(POIS); near = null; go(p.x, p.z); }
+  if (r < 0.3) { const p = pick(POIS.filter(poiOpen)); near = null; go(p.x, p.z); }
   else if (r < 0.65 && people.length) { const a = pick(people); near = a; go(a.seat.x + rand(-0.6, 0.6), a.seat.z + (a.seat.rot === 0 ? -0.7 : 0.7)); }
-  else { const p = pick(POIS); near = null; go(p.x + rand(-1, 1), p.z + rand(-1, 1)); }
+  else { const p = pick(POIS.filter(poiOpen)); near = null; go(p.x + rand(-0.6, 0.6), p.z + rand(-0.6, 0.6)); }
 }
 export function updateCat(dt) {
   t += dt;

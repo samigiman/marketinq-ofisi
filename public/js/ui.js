@@ -1,5 +1,6 @@
 // İnterfeys: yuxarı zolaq, komanda siyahısı, sağ panel (ofis və ya personaj), dialoqlar, kompüter pəncərəsi.
 import { THREE, scene, camera, controls } from './kit.js';
+import { STAGE } from './office.js';
 import { AGENTS, STATUS, byId, setSelectedAgent, topColor } from './agents.js';
 import { JOURNAL, onJournal } from './monitors.js';
 import { camp, startCampaign, callMeeting, assignTask, resumeLink } from './scenarios.js';
@@ -71,14 +72,17 @@ export async function renderTeam(st) {
     for (const a of cands) {
       const p = PERSONAS[a.id] || {};
       const r = document.createElement('div'); r.className = 'cand';
+      const past = staffInfo?.past?.includes(a.id), ex = staffInfo?.exp?.[a.id];
       r.innerHTML = `<span class="av" style="--c:${a.color}">${esc(initials(a.def.name))}</span><span class="info"><span class="n">${esc(a.def.name)}<small>${esc(a.def.role)}</small></span>
-        <span class="small muted">${p.age}, ${esc(p.from || '')}. ${esc(p.bio || '')}</span></span><button class="btn sm" type="button">İşə götür</button>`;
+        ${past ? `<span class="tagx">əvvəl burada işləyib${ex?.n ? ` · ${ex.n} iş görüb` : ''}</span>` : ''}
+        <span class="small muted">${p.age}, ${esc(p.from || '')}. ${esc(p.bio || '')}</span></span><button class="btn sm" type="button">${past ? 'Geri götür' : 'İşə götür'}</button>`;
       r.querySelector('button').onclick = () => hire(a);
       box.appendChild(r);
     }
   }
   if (staffInfo?.edition === 'public') box.insertAdjacentHTML('beforeend', '<p class="hint" style="padding:8px">Bu versiyada dijital marketinq və reklam yerləşdirmə vəzifələri yoxdur.</p>');
   $('teamCount').textContent = `${hired.length} nəfər`;
+  if (selected) renderMeta(selected);
 }
 async function hire(a) {
   if (!live.on) { toast('İşə götürmək üçün server lazımdır'); return; }
@@ -101,7 +105,9 @@ export const stopFollow = () => { follow = false; };
 
 function renderOffice() {
   right.innerHTML = `<div class="side-h"><h2>Ofis</h2><button class="iconbtn" id="rX" aria-label="Bağla">${icon('x')}</button></div><div class="scroll"><section class="sec" id="campSec"></section>
-    <section class="sec"><h3 class="lab">Ofis jurnalı</h3><div class="feed" id="feed">${feed.join('') || '<div class="empty">Hələ heç nə olmayıb.</div>'}</div></section></div>`;
+    <section class="sec"><h3 class="lab">Ofis jurnalı</h3><div class="feed" id="feed">${feed.join('') || '<div class="empty">Hələ heç nə olmayıb.</div>'}</div></section>
+    <section class="sec"><h3 class="lab">Təcrübə kitabı</h3><p class="hint" style="margin:0 0 8px">Bitən hər iş buraya yazılır. Hər kəs işə başlayanda öz sahəsinə aid olanı oxuyur.</p><div class="feed" id="bookList"><div class="empty">Yüklənir…</div></div></section></div>`;
+  loadBook();
   $('rX').onclick = () => setRight(false);
   renderCampaign();
 }
@@ -155,6 +161,7 @@ function renderPerson(a) {
       <div class="who"><h2>${esc(d.name)}</h2><div class="role">${esc(d.role)} · ${p.age}, ${esc(p.from || '')}</div><p class="p-bio">${esc(p.view || '')}</p></div>
       <button class="iconbtn" id="pX" aria-label="Bağla">${icon('x')}</button></div>
     <div class="p-now"><i class="sdot" id="nowDot"></i><span class="t" id="nowT"></span></div>
+    <div class="p-meta" id="pMeta"></div>
     <div class="bar" style="margin:0 16px"><i id="nowP"></i></div>
     <div class="tabs" role="tablist"><button data-tab="chat">Söhbət</button><button data-tab="work">Tapşırıq</button><button data-tab="pc">Kompüter</button><button data-tab="mem">Yaddaş</button></div>
     <div class="pane" data-pane="chat">
@@ -179,7 +186,16 @@ function renderPerson(a) {
   $('chatForm').onsubmit = e => { e.preventDefault(); const i = $('chatIn'); const v = i.value.trim(); if (v) { i.value = ''; sendChat(a, v); } };
   $('fireBtn') && ($('fireBtn').onclick = () => fire(a));
   $('taskForm').onsubmit = e => { e.preventDefault(); const i = $('taskIn'); const v = i.value.trim() || i.placeholder.replace(/^məs: /, ''); i.value = ''; assignTask(a, v); };
-  renderChat(a); setTab(curTab); refreshDetail(true);
+  renderChat(a); setTab(curTab); refreshDetail(true); renderMeta(a);
+}
+// əhval və təcrübə səviyyəsi
+const MOOD_TXT = { yaxşı: 'Əhvalı yaxşıdır', normal: 'Əhvalı normaldır', narahat: 'Narahatdır', pis: 'Əhvalı pisdir' };
+function renderMeta(a) {
+  const el = $('pMeta'); if (!el) return;
+  const m = a.mood, ex = staffInfo?.exp?.[a.id];
+  el.innerHTML = `<span class="meter" title="Əhval"><i style="width:${Math.round((m?.v ?? 0.7) * 100)}%;background:${(m?.v ?? 0.7) < 0.45 ? 'var(--err)' : (m?.v ?? 0.7) < 0.6 ? 'var(--wait)' : 'var(--acc)'}"></i></span>
+    <span>${esc(MOOD_TXT[m?.label] || 'Əhvalı normaldır')}${m?.why && m.label !== 'normal' ? `: ${esc(m.why)}` : ''}</span>
+    <span class="lvl">${ex ? `${esc(ex.level)} · ${ex.n} iş` : ''}</span>`;
 }
 
 function setTab(t) {
@@ -362,7 +378,15 @@ function focusOn(a, dist = 17) {
   if (dir.y < 0.42) { dir.y = 0.42; dir.normalize(); }
   tweenCam(tt.clone().add(dir.multiplyScalar(dist)), tt);
 }
-const VIEWS = [{ p: [12, 14, 12], t: [-1, 0, -2.5] }, { p: [33, 40, 44], t: [0, 0, 0] }, { p: [0, 58, 10], t: [0, 0, 1] }, { p: [-30, 28, 32], t: [-1, 0, 0] }, { p: [0, 12, 30], t: [0, 1, 4] }];
+// kamera: birinci görünüş həmişə indiki mərhələni bütöv göstərir
+const stageView = () => { const t = STAGE.targets[STAGE.cur], d = STAGE.dist[STAGE.cur]; return { p: [t[0] + d * 0.5, d * 0.62, t[2] + d * 0.62], t }; };
+hooks.onStage = (n, prev) => {
+  const v = stageView(); follow = false; tweenCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t), 1.8);
+  log(null, n > prev ? (n === 2 ? '<b>Ofis genişləndi:</b> yan otaqlar icarəyə götürüldü, arakəsmə divar söküldü.' : '<b>Ofis genişləndi:</b> artıq bütün mərtəbə bizimdir.')
+    : '<b>Ofis kiçildi:</b> boş qalan hissə bağlandı.');
+  toast(n > prev ? 'Ofis genişləndi' : 'Ofis kiçildi');
+};
+const VIEWS = [null, { p: [33, 40, 44], t: [0, 0, 0] }, { p: [0, 58, 10], t: [0, 0, 1] }, { p: [-30, 28, 32], t: [-1, 0, 0] }, { p: [0, 12, 30], t: [0, 1, 4] }];
 let viewIdx = 0;
 controls.addEventListener('start', () => { follow = false; camAnim = null; });
 export const selRingFollow = () => { if (selected) selRing.position.set(selected.pos.x, 0.03, selected.pos.z); };
@@ -399,7 +423,7 @@ $('btnOut').onclick = async () => {
 };
 $('btnBook').onclick = () => openBook();
 $('btnNames').onclick = e => { const off = document.body.classList.toggle('hide-names'); e.currentTarget.classList.toggle('on', !off); };
-$('btnCam').onclick = () => { viewIdx = (viewIdx + 1) % VIEWS.length; const v = VIEWS[viewIdx]; follow = false; tweenCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t)); };
+$('btnCam').onclick = () => { viewIdx = (viewIdx + 1) % VIEWS.length; const v = VIEWS[viewIdx] || stageView(); follow = false; tweenCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t)); };
 addEventListener('keydown', e => {
   const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '');
   if (e.key === 'Escape') { if (typing) document.activeElement.blur(); if (document.querySelector('.dlg.show')) closeDlg(); else if (selected) { select(null); setRight(false); } else { setLeft(false); setRight(false); } }
@@ -426,3 +450,11 @@ export function stepCamera(rdt) {
 export function deselect() { if (!selected) return; select(null); $('right').classList.remove('open'); $('dLog').classList.remove('on'); }
 
 renderTeam();
+
+async function loadBook() {
+  const el = $('bookList'); if (!el) return;
+  if (!live.on) { el.innerHTML = '<div class="empty">Server işləyəndə görünür.</div>'; return; }
+  const list = await fetch('/api/experience').then(r => r.json()).catch(() => []);
+  el.innerHTML = list.length ? list.slice(0, 20).map(e => `<div><b>${esc(e.name)}</b> · ${esc(e.task)}<br><span class="small muted">${esc(e.summary.slice(0, 140))}…</span></div>`).join('')
+    : '<div class="empty">Hələ bitən iş yoxdur. Kiməsə tapşırıq verin.</div>';
+}
