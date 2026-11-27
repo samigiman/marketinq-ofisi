@@ -104,7 +104,7 @@ Animasiya, gəzmək, söhbət balonları və görüşlər **heç vaxt** model ç
 
 ## Komanda
 
-24 personaj, 5 şöbə. Hər birinin xarakteri, vərdişi və sevdikləri `public/team.js` faylındadır.
+24 personaj, 5 şöbə. Hər birinin bioqrafiyası, fikirləri və danışıq tərzi `public/team.js` faylındadır.
 
 | Şöbə | Personajlar |
 |---|---|
@@ -181,10 +181,12 @@ marketinq-ofisi/
 ├── memory.mjs          # Ruflo yaddaşı + JSONL ehtiyat, izolə edilmiş mühitdə
 ├── company.md          # şirkət konteksti (siz doldurursunuz)
 ├── public/
-│   ├── index.html      # 3D ofis (Three.js), personajlar, interfeys
+│   ├── index.html      # səhifənin skeleti
+│   ├── css/ofis.css    # interfeysin stili
+│   ├── js/             # 3D ofis (kit, nav, office, agents, monitors), ssenarilər, interfeys
 │   ├── team.js         # komanda, xarakterlər, dünya, kampaniya xətti
 │   ├── live.js         # server əlaqəsi, nəticə pəncərəsi
-│   └── book.js         # 📖 oyundaxili kitab
+│   └── book.js         # oyundaxili kitab
 ├── docs/               # arxitektura, Ruflo, dünya qaydaları
 ├── outputs/            # hazır işlər (git-ə düşmür)
 └── yaddas/             # personaj xatirələri (git-ə düşmür)

@@ -14,14 +14,12 @@ const fire = (type, ev) => (listeners[type] || []).forEach(fn => { try { fn(ev);
 const badge = () => document.getElementById('liveBadge');
 function paintBadge() {
   const b = badge(); if (!b) return;
-  const map = {
-    live: ['🟢', 'Canlı Claude'],
-    mock: ['🟡', 'Demo rejim'],
-    offline: ['⚪', 'Simulyasiya'],
-  };
-  const [d, t] = map[live.mode];
-  b.innerHTML = `${d} <b>${t}</b>`;
-  b.title = live.mode === 'offline' ? 'Körpü server işləmir — `node server.mjs` ilə başladın' : live.detail;
+  const map = { live: ['live', 'Canlı'], mock: ['mock', 'Demo'], offline: ['off', 'Simulyasiya'] };
+  const [cls, t] = map[live.mode];
+  b.className = 'mode ' + cls;
+  b.innerHTML = `<i></i>${t}`;
+  b.title = live.mode === 'offline' ? 'Server işləmir: npm start ilə başladın. Yalnız animasiya gedir.'
+    : live.mode === 'mock' ? 'Server işləyir, Claude çağırılmır: cavablar nümunədir.' : live.detail;
 }
 
 async function post(url, data) {
@@ -113,6 +111,7 @@ live.init = async () => {
       fire('hello', ev);
       return;
     }
+    if (ev.type === 'pc' || ev.type === 'chat') { fire(ev.type, ev); return; }
     if (ev.type === 'job') {
       let j = live.jobs.get(ev.jobId);
       if (!j) live.jobs.set(ev.jobId, (j = { agentId: ev.agentId, text: ev.text, chars: 0, tail: '', done: false }));
@@ -138,20 +137,19 @@ live.init = async () => {
 
 /* ---------------- nəticə pəncərəsi ---------------- */
 const css = `
-#outModal{position:fixed;inset:0;z-index:50;display:none;place-items:center;background:rgba(20,28,45,.38);backdrop-filter:blur(3px)}
+#outModal{position:fixed;inset:0;z-index:50;display:none;place-items:center;background:rgba(29,33,31,.36)}
 #outModal.show{display:grid}
-#outModal .box{width:min(760px,calc(100% - 32px));max-height:calc(100% - 48px);display:flex;flex-direction:column;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(20,30,60,.3);overflow:hidden}
-#outModal .hd{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid rgba(20,30,50,.08)}
-#outModal .hd b{flex:1;font-size:14px}
-#outModal .hd small{color:#6b7487;font:11px ui-monospace,Menlo,monospace}
-#outModal .bd{overflow:auto;padding:14px 20px 20px;font-size:13.5px;line-height:1.55;white-space:pre-wrap;color:#1d2433}
-#outModal .bd h1,#outModal .bd h2,#outModal .bd h3{margin:.6em 0 .2em;line-height:1.25}
-#outModal .bd h1{font-size:18px}#outModal .bd h2{font-size:16px}#outModal .bd h3{font-size:14px}
-#outModal .bd hr{border:0;border-top:1px solid #e5e8ee;margin:10px 0}
-.flink{color:#3d6fb6;cursor:pointer;text-decoration:underline;white-space:nowrap}
+#outModal .box{width:min(780px,calc(100% - 32px));max-height:calc(100% - 48px);display:flex;flex-direction:column;background:var(--bg-raised);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow-pop);overflow:hidden}
+#outModal .hd{display:flex;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+#outModal .hd b{flex:1;font-size:15px;font-weight:600}
+#outModal .hd small{color:var(--ink-2);font:12px var(--mono)}
+#outModal .bd{overflow:auto;padding:16px 22px 24px;font-size:14px;line-height:1.6;white-space:pre-wrap;color:var(--ink)}
+#outModal .bd h1,#outModal .bd h2,#outModal .bd h3{margin:.7em 0 .2em;line-height:1.3;font-weight:600}
+#outModal .bd h1{font-size:20px}#outModal .bd h2{font-size:17px}#outModal .bd h3{font-size:15px}
+#outModal .bd hr{border:0;border-top:1px solid var(--line);margin:12px 0}
 `;
 document.head.insertAdjacentHTML('beforeend', `<style>${css}</style>`);
-document.body.insertAdjacentHTML('beforeend', `<div id="outModal"><div class="box"><div class="hd"><b id="outT"></b><small id="outF"></small><button id="outCopy">📋 Kopyala</button><button id="outX">✕</button></div><div class="bd" id="outB"></div></div></div>`);
+document.body.insertAdjacentHTML('beforeend', `<div id="outModal" role="dialog" aria-modal="true" aria-labelledby="outT"><div class="box"><div class="hd"><b id="outT"></b><small id="outF"></small><button id="outCopy" class="btn">Kopyala</button><button id="outX" class="iconbtn" aria-label="Bağla"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div><div class="bd" id="outB"></div></div></div>`);
 const modal = document.getElementById('outModal');
 const escH = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // sadə markdown: başlıqlar, qalın, xətt — qalanı olduğu kimi
@@ -170,6 +168,6 @@ live.open = async (file, title = '') => {
 document.getElementById('outX').onclick = () => modal.classList.remove('show');
 modal.onclick = e => { if (e.target === modal) modal.classList.remove('show'); };
 addEventListener('keydown', e => { if (e.key === 'Escape') modal.classList.remove('show'); });
-document.getElementById('outCopy').onclick = async () => { try { await navigator.clipboard.writeText(rawText); document.getElementById('outCopy').textContent = '✅ Kopyalandı'; setTimeout(() => (document.getElementById('outCopy').textContent = '📋 Kopyala'), 1500); } catch {} };
+document.getElementById('outCopy').onclick = async () => { try { await navigator.clipboard.writeText(rawText); document.getElementById('outCopy').textContent = 'Kopyalandı'; setTimeout(() => (document.getElementById('outCopy').textContent = 'Kopyala'), 1500); } catch {} };
 // hər yerdə [data-file] linkinə klik → nəticəni aç
 document.addEventListener('click', e => { const l = e.target.closest('[data-file]'); if (l) { e.preventDefault(); live.open(l.dataset.file, l.dataset.title || ''); } });

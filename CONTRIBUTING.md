@@ -5,8 +5,8 @@ Marketinq HQ-yə kömək etmək istədiyiniz üçün təşəkkürlər! ✦
 
 ## Nə ilə kömək edə bilərsiniz
 
-- **Yeni personaj:** `public/team.js` faylında `TEAM`-a bir sətir, `PERSONAS`-a xarakter əlavə edin. Masa yeri `public/index.html`-də `SEATS` bölməsindədir.
-- **Yeni otaq və ya mebel:** `index.html`-də "MEBEL" bölməsi. Personajların keçə bilmədiyi yerləri `block()` ilə işarələyin.
+- **Yeni personaj:** `public/team.js` faylında `TEAM`-a bir sətir, `PERSONAS`-a xarakter əlavə edin. Masa yeri `public/js/office.js`-də (`PODS`, `SEATS`).
+- **Yeni otaq və ya mebel:** `public/js/office.js`. Personajların keçə bilmədiyi yerləri `block()` ilə işarələyin.
 - **Animasiya:** `Agent.update()` (göz qırpma, əl yelləmə, yeriş).
 - **Hekayə:** `public/book.js` fəsilləri, dünya qaydaları (`server.mjs` → `worldRules`).
 - **Real data:** divardakı dashboard (`drawDash`, `tickKPI`) hələ nümunə rəqəmlər göstərir.
@@ -47,7 +47,7 @@ Bu layihədə hər kəsə hörmətlə yanaşırıq. [CODE_OF_CONDUCT.md](CODE_OF
 
 ## English
 
-**Ways to help:** new characters (`public/team.js` → `TEAM` + `PERSONAS`, desk in `index.html` → `SEATS`), new rooms and furniture, animation (`Agent.update()`), story chapters (`public/book.js`), world rules (`server.mjs` → `worldRules`), real data for the wall dashboard, translations, bug reports.
+**Ways to help:** new characters (`public/team.js` → `TEAM` + `PERSONAS`, desk in `public/js/office.js` → `PODS`/`SEATS`), new rooms and furniture, animation (`Agent.update()`), story chapters (`public/book.js`), world rules (`server.mjs` → `worldRules`), real data for the wall dashboard, translations, bug reports.
 
 **Setup:** `npm install`, then `npm run demo` (no Claude needed) or `claude auth login` + `npm start`.
 

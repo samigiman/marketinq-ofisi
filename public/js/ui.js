@@ -1,0 +1,390 @@
+// İnterfeys: yuxarı zolaq, komanda siyahısı, sağ panel (ofis və ya personaj), dialoqlar, kompüter pəncərəsi.
+import { THREE, scene, camera, controls } from './kit.js';
+import { AGENTS, STATUS, byId, setSelectedAgent, topColor } from './agents.js';
+import { JOURNAL, onJournal } from './monitors.js';
+import { camp, startCampaign, callMeeting, assignTask, resumeLink } from './scenarios.js';
+import { PI, pick, esc, initials, clockStr, hooks, icon, fileLink } from './util.js';
+import { TEAM, DEPTS, PERSONAS, PIPE, WORLD } from '../team.js';
+import { live } from '../live.js';
+import { openBook } from '../book.js';
+
+const $ = id => document.getElementById(id);
+const mobile = () => matchMedia('(max-width:900px)').matches;
+
+/* ---------------- lent və bildiriş ---------------- */
+const feed = [];
+export function log(agent, html) {
+  feed.unshift(`<div><span class="tm">${clockStr()}</span>${agent ? `<b>${esc(agent.def.name)}</b> ` : ''}${html}</div>`);
+  if (feed.length > 60) feed.pop();
+  if (!selected) { const f = $('feed'); if (f) f.innerHTML = feed.join(''); }
+}
+let toastT;
+export function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
+
+/* ---------------- yuxarı zolaq ---------------- */
+$('top').innerHTML = `
+  <button class="iconbtn mob" id="mTeam" aria-label="Komanda">${icon('users')}</button>
+  <div class="brand"><b>${esc(WORLD.company)}</b><span>${esc(WORLD.floor)}</span></div>
+  <button id="campChip" type="button"></button>
+  <div class="spacer"></div>
+  <span id="clock">09:00</span>
+  <span id="liveBadge" class="mode off"><i></i>Simulyasiya</span>
+  <div class="seg desk-only" id="speed" role="group" aria-label="Sürət"><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="4">4×</button></div>
+  <button class="iconbtn desk-only" id="btnCam" title="Kamera bucağı" aria-label="Kamera bucağı">${icon('video')}</button>
+  <button class="iconbtn on desk-only" id="btnNames" title="Adları göstər" aria-label="Adları göstər">${icon('tag')}</button>
+  <button class="iconbtn" id="btnBook" title="Ofisin kitabı" aria-label="Ofisin kitabı">${icon('book')}</button>
+  <button class="iconbtn mob" id="mPanel" aria-label="Panel">${icon('menu')}</button>`;
+
+/* ---------------- sol: komanda ---------------- */
+const rowEls = {};
+$('left').innerHTML = `
+  <div class="side-h"><h2>Komanda</h2><span class="small muted">${TEAM.length} nəfər</span></div>
+  <div id="team"></div>
+  <div class="side-f">
+    <button class="btn primary" id="btnCamp">${icon('rocket', 16)}Kampaniya başlat</button>
+    <button class="btn" id="btnMeet">${icon('calendar', 16)}Görüş</button>
+    <button class="btn" id="btnOut">${icon('folder', 16)}İşlər</button>
+  </div>`;
+for (const [k, dp] of Object.entries(DEPTS)) {
+  const h = document.createElement('div'); h.className = 'dept'; h.textContent = dp.name; $('team').appendChild(h);
+  for (const a of AGENTS.filter(a => a.def.dept === k)) {
+    const r = document.createElement('button'); r.type = 'button'; r.className = 'row';
+    r.innerHTML = `<span class="av" style="--c:${a.color}">${esc(initials(a.def.name))}</span><span class="info"><span class="n">${esc(a.def.name)}<small>${esc(a.def.role)}</small></span>
+      <span class="st"><i class="sdot"></i><span class="tx"></span></span></span>`;
+    r.onclick = () => { select(a, true); if (mobile()) $('left').classList.remove('open'); };
+    $('team').appendChild(r);
+    rowEls[a.id] = { r, dot: r.querySelector('.sdot'), tx: r.querySelector('.tx') };
+  }
+}
+
+/* ---------------- sağ panel ---------------- */
+const right = $('right');
+export let selected = null;
+let follow = false, curTab = 'chat';
+const selRing = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.68, 40), new THREE.MeshBasicMaterial({ color: '#1f5f4a', transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
+selRing.rotation.x = -PI / 2; selRing.visible = false; scene.add(selRing);
+export const followState = () => follow;
+export const stopFollow = () => { follow = false; };
+
+function renderOffice() {
+  right.innerHTML = `<div class="scroll"><section class="sec" id="campSec"></section>
+    <section class="sec"><h3 class="lab">Ofis jurnalı</h3><div class="feed" id="feed">${feed.join('') || '<div class="empty">Hələ heç nə olmayıb.</div>'}</div></section></div>`;
+  renderCampaign();
+}
+
+// kampaniya: sağ paneldə addımlar, yuxarıda qısa vəziyyət
+export function renderCampaign() {
+  const c = camp.cur, chip = $('campChip');
+  if (!c) { chip.className = ''; chip.innerHTML = ''; } else {
+    chip.className = 'show';
+    chip.innerHTML = `${icon('rocket', 16)}<span>«${esc(c.name)}» · ${c.done ? 'hazırdır' : c.error ? 'dayandı' : `${Math.min(c.step + 1, PIPE.length)}/${PIPE.length}`}</span>`;
+    chip.onclick = () => select(null);
+  }
+  const sec = $('campSec'); if (!sec) return;
+  if (!c) { sec.innerHTML = `<h3 class="lab">Kampaniya</h3><div class="empty">Gedən kampaniya yoxdur. Soldakı <b>Kampaniya başlat</b> ilə başladın.</div>`; return; }
+  sec.innerHTML = `<h3 class="lab">Kampaniya: «${esc(c.name)}»</h3>
+    ${c.error ? `<p class="small" style="color:var(--err)">${esc(c.error)} ${c.id ? resumeLink(c.id, c.name) : ''}</p>` : ''}
+    ${c.done && c.file ? `<p class="small">${fileLink(c.file, `Kampaniya: ${c.name}`, 'Yekun sənədi aç')}</p>` : ''}
+    <div class="steps">${PIPE.map((s, i) => {
+      const a = byId(s.id), state = i < c.step || c.done ? 'done' : i === c.step ? (c.error ? 'err' : 'run') : '';
+      const txt = state === 'done' ? 'hazırdır' : state === 'run' ? 'işləyir' : state === 'err' ? 'alınmadı' : 'gözləyir';
+      return `<div class="step ${state}"><span class="ix">${String(i + 1).padStart(2, '0')}</span><span class="b"><b>${esc(a.def.name)}</b> · ${esc(s.task)}<div class="s">${txt}</div></span></div>`;
+    }).join('')}</div>`;
+}
+hooks.renderCampaign = renderCampaign;
+
+const SUGG = ['Bu gün nə üzərində işləyirsən?', 'Bu işə necə gəlmisən?', 'Komandada kimlə yaxşı işləyirsən?', 'Hazırkı işimizdə nəyi bəyənmirsən?'];
+const CHATS = (() => { try { return JSON.parse(localStorage.getItem('ofis-chats') || '{}'); } catch { return {}; } })();
+const saveChats = () => { try { localStorage.setItem('ofis-chats', JSON.stringify(CHATS)); } catch {} };
+const rich = t => esc(t).replace(/\*([^*\n]{1,120})\*/g, '<em>$1</em>').replace(/_\(([^)]*)\)_/g, '<em>($1)</em>');
+const activityOf = a => `${STATUS[a.status][0]}: ${a.task || a.bubbleText || 'masasında'}`;
+
+export function select(a, focus = false) {
+  if (selected) { selected.el.classList.remove('sel'); rowEls[selected.id].r.classList.remove('sel'); selected.faceBoss = false; }
+  selected = a; setSelectedAgent(a);
+  if (!a) { selRing.visible = false; follow = false; renderOffice(); return; }
+  a.el.classList.add('sel'); rowEls[a.id].r.classList.add('sel');
+  rowEls[a.id].r.scrollIntoView({ block: 'nearest' });
+  selRing.visible = true;
+  a.faceBoss = true; a.waveT = 1.2;
+  renderPerson(a);
+  if (mobile()) right.classList.add('open');
+  if (focus) { follow = true; focusOn(a, 12); }
+}
+hooks.select = select;
+
+function renderPerson(a) {
+  const d = a.def, p = PERSONAS[a.id] || {};
+  const modeHint = live.mode === 'live' ? `Tapşırıq ${d.name}-ın kompüterində real agentlə gedir.` : live.mode === 'mock' ? 'Demo rejim: model çağırılmır, nəticə nümunədir.' : 'Server qoşulu deyil: yalnız animasiya gedir.';
+  right.innerHTML = `
+    <div class="p-head"><span class="av lg" style="--c:${a.color}">${esc(initials(d.name))}</span>
+      <div class="who"><h2>${esc(d.name)}</h2><div class="role">${esc(d.role)} · ${p.age}, ${esc(p.from || '')}</div><p class="p-bio">${esc(p.view || '')}</p></div>
+      <button class="iconbtn" id="pX" aria-label="Bağla">${icon('x')}</button></div>
+    <div class="p-now"><i class="sdot" id="nowDot"></i><span class="t" id="nowT"></span></div>
+    <div class="bar" style="margin:0 16px"><i id="nowP"></i></div>
+    <div class="tabs" role="tablist"><button data-tab="chat">Söhbət</button><button data-tab="work">Tapşırıq</button><button data-tab="pc">Kompüter</button><button data-tab="mem">Yaddaş</button></div>
+    <div class="pane" data-pane="chat">
+      <div id="chatLog"></div>
+      <div class="sugg">${SUGG.map(s => `<button type="button">${esc(s)}</button>`).join('')}</div>
+      <form class="composer" id="chatForm"><input type="text" id="chatIn" maxlength="500" placeholder="${esc(d.name)} ilə danışın" autocomplete="off"><button class="btn primary" aria-label="Göndər">${icon('send', 16)}</button></form>
+    </div>
+    <div class="pane" data-pane="work"><div class="scroll">
+      <h3 class="lab">Tapşırıq ver</h3>
+      <form class="inline" id="taskForm"><input type="text" id="taskIn" maxlength="300" placeholder="məs: ${esc(pick(d.tasks))}" autocomplete="off"><button class="btn primary">Göndər</button></form>
+      <p class="hint">${modeHint}</p>
+      <h3 class="lab" style="margin-top:20px">Bacarıqlar</h3><div class="skills">${d.skills.map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div>
+      <h3 class="lab" style="margin-top:20px">Bu gün görülən işlər</h3><div class="hist" id="dH"></div>
+    </div></div>
+    <div class="pane" data-pane="pc"><div class="scroll" id="pcBox"></div></div>
+    <div class="pane" data-pane="mem"><div class="scroll" id="memBox"></div></div>`;
+  $('pX').onclick = () => { select(null); if (mobile()) right.classList.remove('open'); };
+  right.querySelectorAll('.tabs button').forEach(b => (b.onclick = () => setTab(b.dataset.tab)));
+  right.querySelectorAll('.sugg button').forEach(b => (b.onclick = () => sendChat(a, b.textContent)));
+  $('chatForm').onsubmit = e => { e.preventDefault(); const i = $('chatIn'); const v = i.value.trim(); if (v) { i.value = ''; sendChat(a, v); } };
+  $('taskForm').onsubmit = e => { e.preventDefault(); const i = $('taskIn'); const v = i.value.trim() || i.placeholder.replace(/^məs: /, ''); i.value = ''; assignTask(a, v); };
+  renderChat(a); setTab(curTab); refreshDetail(true);
+}
+
+function setTab(t) {
+  curTab = t;
+  right.querySelectorAll('.tabs button').forEach(b => { b.classList.toggle('on', b.dataset.tab === t); b.setAttribute('aria-selected', b.dataset.tab === t); });
+  right.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === t));
+  if (t === 'mem' && selected) loadMemories(selected);
+  if (t === 'pc' && selected) loadComputer(selected);
+  if (t === 'chat' && !mobile()) setTimeout(() => $('chatIn')?.focus(), 50);
+}
+
+function renderChat(a) {
+  const el = $('chatLog'); if (!el) return;
+  const msgs = CHATS[a.id] || [];
+  el.innerHTML = (msgs.length ? '' : `<div class="empty">${esc(a.def.name)} ilə hələ danışmamısınız.</div>`) +
+    msgs.map(m => `<div class="msg ${m.role === 'me' ? 'me' : 'them'}">${rich(m.text)}</div>`).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+const busyChat = new Set();
+async function sendChat(a, text) {
+  if (busyChat.has(a.id)) return;
+  if (!live.on) { toast('Söhbət üçün server lazımdır: npm start'); return; }
+  const msgs = (CHATS[a.id] ||= []);
+  msgs.push({ role: 'me', text }); saveChats();
+  const isOpen = () => selected === a && curTab === 'chat';
+  if (isOpen()) renderChat(a);
+  const logEl = () => (isOpen() ? $('chatLog') : null);
+  const bubble = document.createElement('div'); bubble.className = 'msg them typing'; bubble.textContent = 'yazır…';
+  logEl()?.appendChild(bubble); if (logEl()) logEl().scrollTop = logEl().scrollHeight;
+  busyChat.add(a.id); a.speaking = true; a.faceBoss = true;
+  let reply = '';
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ agentId: a.id, message: text, history: msgs.slice(0, -1).slice(-10), activity: activityOf(a) }) });
+    if (!r.ok || !r.body) throw new Error((await r.json().catch(() => ({}))).error || 'Cavab gəlmədi');
+    const rd = r.body.getReader(), dec = new TextDecoder();
+    for (;;) {
+      const { value, done } = await rd.read(); if (done) break;
+      reply += dec.decode(value, { stream: true });
+      bubble.classList.remove('typing'); bubble.innerHTML = rich(reply);
+      if (logEl()) logEl().scrollTop = logEl().scrollHeight;
+      const clean = reply.replace(/\*[^*]*\*/g, '').trim();
+      if (clean) a.say(clean.length > 70 ? '…' + clean.slice(-68) : clean);
+    }
+  } catch (e) { reply = `Xəta: ${e.message}`; }
+  busyChat.delete(a.id); a.speaking = false;
+  reply = reply.trim() || '…';
+  msgs.push({ role: 'them', text: reply }); if (msgs.length > 40) msgs.splice(0, msgs.length - 40); saveChats();
+  const clean = reply.replace(/\*[^*]*\*/g, '').replace(/\s+/g, ' ').trim();
+  a.flash(clean.length > 80 ? clean.slice(0, 78) + '…' : clean, 5);
+  if (isOpen()) renderChat(a); else log(a, 'sizə cavab yazdı');
+}
+
+async function loadMemories(a) {
+  const box = $('memBox'); if (!box) return;
+  if (!live.on) { box.innerHTML = '<div class="empty">Yaddaş server işləyəndə görünür.</div>'; return; }
+  box.innerHTML = '<div class="empty">Yüklənir…</div>';
+  try {
+    const j = await fetch('/api/agent?id=' + a.id).then(r => r.json());
+    if (selected !== a) return;
+    const when = t => new Date(t).toLocaleString('az-AZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+    box.innerHTML = `<p class="hint" style="margin:0 0 12px">${j.count} qeyd · ${j.ruflo ? 'Ruflo yaddaşı' : 'yerli yaddaş'}</p>` +
+      (j.memories.length ? j.memories.map(m => `<div class="mem"><small>${when(m.t)} · ${esc(m.kind)}</small>${esc(m.text)}</div>`).join('')
+        : `<div class="empty">${esc(a.def.name)} hələ sizinlə bağlı heç nə xatırlamır. Danışın və ya tapşırıq verin.</div>`);
+  } catch { box.innerHTML = '<div class="empty">Yaddaş açılmadı.</div>'; }
+}
+
+/* ---------------- kompüter ---------------- */
+const termHtml = lines => lines.slice(-80).map(l => `<span class="${esc(l.kind)}">${esc(l.text)}</span>`).join('\n');
+const sizeStr = n => (n > 1024 ? (n / 1024).toFixed(1) + ' KB' : n + ' B');
+const fileList = (files, cls = '') => files.length ? files.map(f => f.dir
+  ? `<button type="button" class="dir" disabled>${icon('dir', 14)}${esc(f.f)}</button>`
+  : `<button type="button" data-pcf="${esc(f.f)}">${icon('file', 14)}<span>${esc(f.f)}</span><span class="sz">${sizeStr(f.size)}</span></button>`).join('') : '<div class="empty">Qovluq boşdur.</div>';
+const engineText = j => j.engine === 'codex' && j.runs !== 'codex' ? 'Codex (hələ söndürülüb, Claude işləyir)' : j.runs === 'codex' ? 'Codex' : 'Claude';
+
+async function loadComputer(a) {
+  const box = $('pcBox'); if (!box) return;
+  if (!live.on) { box.innerHTML = '<div class="empty">Kompüter server işləyəndə açılır.</div>'; return; }
+  try {
+    const j = await fetch('/api/pc?id=' + a.id).then(r => r.json());
+    if (selected !== a || curTab !== 'pc') return;
+    JOURNAL[a.id] = j.log;
+    box.innerHTML = `<div class="pc-st"><i class="sdot" style="background:${j.busy ? 'var(--acc)' : 'var(--ink-3)'}"></i>${j.busy ? 'İşləyir' : 'Boşdur'} · ${esc(engineText(j))}</div>
+      <div class="term" id="pcTerm">${termHtml(j.log) || '<span class="note">Hələ heç nə işə salınmayıb.</span>'}</div>
+      <div class="files"><h3 class="lab" style="margin-top:16px">Fayllar</h3>${fileList(j.files)}</div>
+      <p style="margin-top:12px"><button class="btn sm" id="pcOpen">${icon('monitor', 16)}Böyük ekranda aç</button></p>`;
+    const t = $('pcTerm'); t.scrollTop = t.scrollHeight;
+    $('pcOpen').onclick = () => openComputer(a);
+    box.querySelectorAll('[data-pcf]').forEach(b => (b.onclick = () => openComputer(a, b.dataset.pcf)));
+  } catch { box.innerHTML = '<div class="empty">Kompüter açılmadı.</div>'; }
+}
+onJournal(id => {
+  if (selected?.id === id && curTab === 'pc') { const t = $('pcTerm'); if (t) { t.innerHTML = termHtml(JOURNAL[id]); t.scrollTop = t.scrollHeight; } }
+  if (pcOpenFor === id) { const t = $('pcDlgTerm'); if (t) { t.innerHTML = termHtml(JOURNAL[id]); t.scrollTop = t.scrollHeight; } }
+});
+
+let pcOpenFor = null;
+export async function openComputer(a, file = null) {
+  if (!live.on) { toast('Kompüter server işləyəndə açılır'); return; }
+  pcOpenFor = a.id;
+  const dlg = $('pcDlg');
+  dlg.querySelector('h3').textContent = `${a.def.name}: kompüter`;
+  dlg.classList.add('show');
+  const j = await fetch('/api/pc?id=' + a.id).then(r => r.json()).catch(() => null);
+  if (!j) return;
+  JOURNAL[a.id] = j.log;
+  $('pcTree').innerHTML = `<p class="hint" style="margin:4px 8px 8px">${esc(engineText(j))}</p>` + fileList(j.files);
+  $('pcDlgTerm').innerHTML = termHtml(j.log) || '<span class="note">Hələ heç nə işə salınmayıb.</span>';
+  $('pcDlgTerm').scrollTop = 1e6;
+  const show = async f => {
+    $('pcTree').querySelectorAll('[data-pcf]').forEach(b => b.classList.toggle('on', b.dataset.pcf === f));
+    const r = await fetch(`/api/pc/file?id=${a.id}&f=${encodeURIComponent(f)}`).then(r => r.json()).catch(() => null);
+    $('pcView').textContent = !r ? 'Fayl açılmadı.' : r.binary ? `Mətn faylı deyil (${sizeStr(r.size)}).` : r.tooBig ? `Fayl böyükdür (${sizeStr(r.size)}).` : r.text;
+  };
+  $('pcTree').querySelectorAll('[data-pcf]').forEach(b => (b.onclick = () => show(b.dataset.pcf)));
+  const first = file || j.files.filter(f => !f.dir).sort((x, y) => y.t - x.t)[0]?.f;
+  if (first) show(first); else $('pcView').textContent = 'Fayl seçin.';
+}
+hooks.openComputer = openComputer;
+
+/* ---------------- yenilənmə ---------------- */
+let lastHist = '';
+function refreshDetail(force) {
+  if (!selected) return;
+  const a = selected, st = STATUS[a.status];
+  const nd = $('nowDot'); if (!nd) return;
+  nd.style.background = st[1];
+  const cur = `${a.speaking ? 'Sizinlə danışır' : st[0]}${a.flashT > 0 ? ': ' + a.flashText : a.bubbleText || a.task ? ': ' + (a.bubbleText || a.task) : ''}`;
+  const nt = $('nowT'); if (nt.textContent !== cur) nt.textContent = cur;
+  const p = a.progress(); $('nowP').style.width = (p == null ? 0 : p * 100) + '%';
+  const hs = a.history.slice(0, 8).map(h => h.s ?? h).join('|');
+  if (force || hs !== lastHist) {
+    lastHist = hs;
+    const dH = $('dH'); if (dH) dH.innerHTML = a.history.length
+      ? a.history.slice(0, 8).map(h => h.file ? `<div>${esc(h.s)} · ${fileLink(h.file, h.title)}</div>` : `<div>${esc(h)}</div>`).join('')
+      : '<div class="empty">Bu gün hələ bir iş bitməyib.</div>';
+  }
+}
+export function refreshPanels() {
+  for (const a of AGENTS) {
+    const re = rowEls[a.id], st = STATUS[a.status];
+    re.dot.style.background = st[1];
+    const tx = `${st[0]}${a.task && ['work', 'assigned', 'campaign'].includes(a.status) ? ' · ' + a.task : ''}`;
+    if (re.tx.textContent !== tx) re.tx.textContent = tx;
+  }
+  $('clock').textContent = clockStr();
+  refreshDetail();
+}
+
+/* ---------------- yaxınlaşanda danışmaq ---------------- */
+let nearAgent = null;
+export const getNear = () => nearAgent;
+export function updateNear() {
+  let best = null;
+  const camD = camera.position.distanceTo(controls.target);
+  if (!selected && camD < 22) {
+    let bd = 4.2;
+    for (const a of AGENTS) { const d = Math.hypot(a.pos.x - controls.target.x, a.pos.z - controls.target.z); if (d < bd) { bd = d; best = a; } }
+  }
+  if (best === nearAgent) return;
+  nearAgent?.el.classList.remove('near');
+  nearAgent = best;
+  const el = $('near');
+  if (best) {
+    best.el.classList.add('near');
+    el.innerHTML = `<span>${esc(best.def.name)} yaxınlıqdadır</span><button class="btn primary sm" id="nearGo">Danış</button><kbd>Enter</kbd>`;
+    $('nearGo').onclick = () => select(best, true);
+    el.classList.add('show');
+  } else el.classList.remove('show');
+}
+
+/* ---------------- kamera ---------------- */
+export let camAnim = null;
+export const setCamAnim = v => { camAnim = v; };
+function tweenCam(toP, toT, dur = 1.1) { camAnim = { fp: camera.position.clone(), ft: controls.target.clone(), tp: toP, tt: toT, t: 0, dur }; }
+function focusOn(a, dist = 17) {
+  const tt = new THREE.Vector3(a.pos.x, 1.1, a.pos.z);
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  if (dir.y < 0.42) { dir.y = 0.42; dir.normalize(); }
+  tweenCam(tt.clone().add(dir.multiplyScalar(dist)), tt);
+}
+const VIEWS = [{ p: [33, 40, 44], t: [0, 0, 0] }, { p: [0, 58, 10], t: [0, 0, 1] }, { p: [-30, 28, 32], t: [-1, 0, 0] }, { p: [0, 12, 30], t: [0, 1, 4] }];
+let viewIdx = 0;
+controls.addEventListener('start', () => { follow = false; camAnim = null; });
+export const selRingFollow = () => { if (selected) selRing.position.set(selected.pos.x, 0.03, selected.pos.z); };
+
+/* ---------------- dialoqlar ---------------- */
+document.body.insertAdjacentHTML('beforeend', `
+  <div class="dlg" id="campDlg" role="dialog" aria-modal="true" aria-labelledby="campH"><div class="box"><div class="hd"><h3 id="campH">Yeni kampaniya</h3><button class="iconbtn" data-close aria-label="Bağla">${icon('x')}</button></div>
+    <form class="bd" id="campForm"><input type="text" id="campName" placeholder="Kampaniyanın adı, məs: Novruz 2027" autocomplete="off" maxlength="120">
+      <p class="hint">${PIPE.length} nəfər işi bir-birinə təhvil verir: brifdən hesabata qədər. Gedişat sağ paneldə görünür.</p>
+      <p style="margin:16px 0 0;display:flex;justify-content:flex-end;gap:8px"><button type="button" class="btn" data-close>Ləğv et</button><button class="btn primary">Başlat</button></p></form></div></div>
+  <div class="dlg" id="outDlg" role="dialog" aria-modal="true" aria-labelledby="outH"><div class="box"><div class="hd"><h3 id="outH">Hazır işlər</h3><button class="iconbtn" data-close aria-label="Bağla">${icon('x')}</button></div><div class="bd outs" id="outItems"></div></div></div>
+  <div class="dlg" id="pcDlg" role="dialog" aria-modal="true" aria-labelledby="pcH"><div class="box"><div class="hd"><h3 id="pcH">Kompüter</h3><button class="iconbtn" data-close aria-label="Bağla">${icon('x')}</button></div>
+    <div class="bd"><div class="ftree files" id="pcTree"></div><div class="view" id="pcView"></div><div class="term" id="pcDlgTerm"></div></div></div></div>`);
+const closeDlg = () => { document.querySelectorAll('.dlg.show').forEach(d => d.classList.remove('show')); pcOpenFor = null; };
+document.querySelectorAll('.dlg').forEach(d => { d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) closeDlg(); }); });
+
+$('btnCamp').onclick = () => { $('campDlg').classList.add('show'); setTimeout(() => $('campName').focus(), 50); };
+$('campForm').onsubmit = e => {
+  e.preventDefault(); const i = $('campName');
+  startCampaign(i.value.trim() || pick(['Novruz 2027', 'Yeni il endirimi', 'Yay kolleksiyası']));
+  i.value = ''; closeDlg(); select(null);
+};
+$('btnMeet').onclick = () => callMeeting();
+$('btnOut').onclick = async () => {
+  $('outDlg').classList.add('show');
+  const box = $('outItems');
+  if (!live.on) { box.innerHTML = '<div class="empty">Server qoşulu deyil.</div>'; return; }
+  box.innerHTML = '<div class="empty">Yüklənir…</div>';
+  try {
+    const list = await fetch('/api/outputs').then(r => r.json());
+    box.innerHTML = list.length ? list.map(o => `<button type="button" data-file="${esc(o.f)}" data-title="${esc(o.f.split('/').pop())}"><span>${esc(o.f.replace(/^(tapsiriqlar|kampaniyalar)\//, ''))}</span><span>${new Date(o.t).toLocaleString('az-AZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span></button>`).join('')
+      : '<div class="empty">Hələ hazır iş yoxdur. Kiməsə tapşırıq verin və ya kampaniya başladın.</div>';
+  } catch { box.innerHTML = '<div class="empty">Siyahı açılmadı.</div>'; }
+};
+$('btnBook').onclick = () => openBook();
+$('btnNames').onclick = e => { const off = document.body.classList.toggle('hide-names'); e.currentTarget.classList.toggle('on', !off); };
+$('btnCam').onclick = () => { viewIdx = (viewIdx + 1) % VIEWS.length; const v = VIEWS[viewIdx]; follow = false; tweenCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t)); };
+export let simSpeed = 1;
+document.querySelectorAll('#speed button').forEach(b => (b.onclick = () => { simSpeed = +b.dataset.s; document.querySelectorAll('#speed button').forEach(x => x.classList.toggle('on', x === b)); }));
+$('mTeam').onclick = () => { right.classList.remove('open'); $('left').classList.toggle('open'); };
+$('mPanel').onclick = () => { $('left').classList.remove('open'); right.classList.toggle('open'); };
+addEventListener('keydown', e => {
+  const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '');
+  if (e.key === 'Escape') { if (typing) document.activeElement.blur(); if (document.querySelector('.dlg.show')) closeDlg(); else select(null); }
+  if (e.key === 'Enter' && !typing && nearAgent && !selected) { e.preventDefault(); select(nearAgent, true); }
+});
+
+hooks.log = log; hooks.toast = toast;
+renderOffice();
+
+// Hər kadr: kamera keçidi və ya seçilmiş personajı izləmə.
+export function stepCamera(rdt) {
+  if (camAnim) {
+    camAnim.t += rdt / camAnim.dur; const e = 1 - Math.pow(1 - Math.min(1, camAnim.t), 3);
+    camera.position.lerpVectors(camAnim.fp, camAnim.tp, e); controls.target.lerpVectors(camAnim.ft, camAnim.tt, e);
+    if (camAnim.t >= 1) camAnim = null;
+  } else if (follow && selected) {
+    const want = new THREE.Vector3(selected.pos.x, 1, selected.pos.z), d = want.sub(controls.target).multiplyScalar(Math.min(1, rdt * 3));
+    controls.target.add(d); camera.position.add(d);
+  }
+  selRingFollow();
+}
