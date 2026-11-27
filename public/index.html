@@ -183,7 +183,7 @@
 <div id="app"></div>
 
 <div id="brand" class="glass">
-  <div class="row1"><div class="logo">✦</div><div><b>Marketinq HQ</b><small>Ulduz Marketinq · 9-cu mərtəbə</small></div><div id="clock">09:00</div></div>
+  <div class="row1"><div class="logo">✦</div><div><b>Marketinq HQ</b><small>Ulduz Marketinq · 3-cü mərtəbə</small></div><div id="clock">09:00</div></div>
   <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap"><span id="liveBadge" class="chip">⚪ <b>Simulyasiya</b></span><div id="stats"></div></div>
 </div>
 
@@ -1217,7 +1217,7 @@ const selRing = new THREE.Mesh(new THREE.RingGeometry(0.62, 0.78, 40), new THREE
 selRing.rotation.x = -PI / 2; selRing.visible = false; scene.add(selRing);
 
 const GREET = ['👋 Salam, Rəhbər!', '😊 Oo, xoş gəldiniz!', '👋 Buyurun, Rəhbər!', '🥰 Sizi görməyə şadam!'];
-const SUGG = ['Nə iş görürsən?', 'Günün necə keçir?', 'Liftə minməmişdən əvvəl nə xatırlayırsan?', 'Kimlə işləməyi sevirsən?'];
+const SUGG = ['Nə iş görürsən?', 'Günün necə keçir?', 'Bu işə necə gəlmisən?', 'Kimlə işləməyi sevirsən?'];
 const CHATS = (() => { try { return JSON.parse(localStorage.getItem('ofis-chats') || '{}'); } catch { return {}; } })();
 const saveChats = () => { try { localStorage.setItem('ofis-chats', JSON.stringify(CHATS)); } catch {} };
 const rich = t => esc(t).replace(/\*([^*\n]{1,120})\*/g, '<em>*$1*</em>').replace(/_\(([^)]*)\)_/g, '<em>($1)</em>');
@@ -1337,7 +1337,7 @@ async function loadMemories(a) {
     if (selected !== a) return;
     const when = t => new Date(t).toLocaleString('az-AZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
     box.innerHTML = `<div class="lab2">🧠 ${j.count} iş xatirəsi · ${j.ruflo ? 'Ruflo yaddaşı (AgentDB)' : 'yerli yaddaş'}</div>
-      <div class="hint2">${esc(a.def.name)} yalnız ofisdə yaşadıqlarını xatırlayır. ${esc(WORLD.lift)}lə qalxanda bayırdakı həyatı qapının o tayında qalır.</div>` +
+      <div class="hint2">${esc(a.def.name)} sizinlə söhbətləri və gördüyü işləri xatırlayır.</div>` +
       (j.memories.length ? j.memories.map(m => `<div class="mem"><small>${when(m.t)} · ${esc(m.kind)}</small>${esc(m.text)}</div>`).join('')
         : '<div class="mem">Hələ xüsusi bir xatirə yoxdur — onunla danışın və ya tapşırıq verin.</div>');
   } catch { box.innerHTML = '<div class="hint2">Yaddaş açılmadı.</div>'; }
@@ -1742,7 +1742,7 @@ for (const a of AGENTS) {
     await a.sleep(rand(2, 14), true);
   }, 'free');
 }
-log(null, `🛗 ${WORLD.lift}in qapısı açıldı — komanda masalarına keçdi. Bayırdakı həyat qapının o tayında qaldı.`);
+log(null, `Saat 09:00. ${WORLD.company} açıldı, komanda masalarına keçir.`);
 // səhifə yenilənəndə server hələ kampaniya aparırsa, animasiyaya qoşul
 live.sub('campaign', ({ phase, campaignId, name, from }) => {
   if (phase !== 'rejoin' || campaign) return;
@@ -1767,7 +1767,7 @@ function animate() {
   requestAnimationFrame(animate);
   const rdt = Math.min(clock.getDelta(), 0.1), dt = rdt * simSpeed;
   simT += dt; simMin += dt;
-  if (simMin >= 19 * 60) { simMin = 9 * 60; log(null, `🌙 Növbə bitdi, ${WORLD.lift} aşağı düşdü… 🛗 Səhər oldu — hamı yenidən masasında, dünən axşamdan heç nə xatırlamır.`); }
+  if (simMin >= 19 * 60) { simMin = 9 * 60; log(null, `Saat 19:00, iş günü bitdi. Növbəti səhər hamı yenidən masasındadır.`); }
 
   for (const tm of timers) {
     tm.t -= dt;

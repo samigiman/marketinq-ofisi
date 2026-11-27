@@ -40,7 +40,7 @@ Layihə iki hissədən ibarətdir: brauzerdə işləyən 3D ofis və onu dil mod
 
 `server.mjs` daxilində:
 
-- `worldRules(agent)`: ad, rol, xarakter, həmkarlar, lift qaydası, "bot deyilsən", Rəhbər.
+- `worldRules(agent)`: bioqrafiya, fikir, danışıq tərzi, münasibətlər, agentliyin tarixçəsi, Rəhbərə münasibət (bax `docs/WORLD.md`).
 - `memoryBlock(recent, recalled)`: son xatirələr və Ruflo axtarışının nəticələri.
 - `chatSystem(...)`: söhbət üçün qısa, canlı cavab qaydaları.
 - `systemPrompt(...)`: iş üçün peşəkar sənəd qaydaları, `company.md` konteksti.
