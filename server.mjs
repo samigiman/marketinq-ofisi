@@ -482,14 +482,16 @@ async function runTeam(text) {
       const names = t.parts.map(p => byId[p.agentId].name).join(', ');
       emit({ type: 'team', phase: 'plan', teamId: t.id, text, lead, parts: t.parts });
       const ctx = p => `Bu, komanda tapşırığının sənə düşən hissəsidir. Ümumi tapşırıq: "${text}". ${byId[lead].name} işi böldü; komandada: ${t.parts.map(x => `${byId[x.agentId].name} (${x.task})`).join('; ')}. Yalnız öz hissəni gör, qısa və konkret yaz: başqası birləşdirəcək.`;
-      const jobsRun = await Promise.all(t.parts.map(p => runTask(p.agentId, p.task, { team: t.id, extra: ctx(p) }).then(j => { p.jobId = j.id; return j.promise; })));
+      const jobsRun = await Promise.all(t.parts.map(p => runTask(p.agentId, p.task, { team: t.id, extra: ctx(p) })
+        .then(j => { p.jobId = j.id; return j.promise; })
+        .then(j => { p.status = j.status; p.file = j.file; return j; }))); // hər hissə bitən kimi görünsün
       jobsRun.forEach((j, i) => { t.parts[i].status = j.status; t.parts[i].file = j.file; });
       const done = jobsRun.filter(j => j.status === 'done');
       if (!done.length) throw new Error('Heç bir hissə alınmadı');
       emit({ type: 'team', phase: 'merging', teamId: t.id, text, lead });
       const merged = done.map(j => `### ${byId[j.agentId].name} · ${byId[j.agentId].role}\n${j.output.slice(0, 5000)}`).join('\n\n');
       const mj = await runTask(lead, text, { team: t.id, merge: true,
-        extra: `Sən bu komanda işinin rəhbərisən. Komanda (${names}) hissələri hazırladı. Onları vahid, ardıcıl, təkrarsız yekun sənədə çevir; ziddiyyət varsa qərar ver və qeyd et. Kimin hansı hissəni verdiyini sonda qısa göstər.\n<hisseler>\n${merged}\n</hisseler>` });
+        extra: `Sən bu komanda işinin rəhbərisən. Komanda (${names}) hissələri hazırladı və aşağıda tam mətnləri var: həmkarlarının qovluğuna baxmağa ehtiyac yoxdur. Onları vahid, ardıcıl, təkrarsız yekun sənədə çevir; ziddiyyət varsa qərar ver və qeyd et. Kimin hansı hissəni verdiyini sonda qısa göstər.\n<hisseler>\n${merged}\n</hisseler>` });
       const m = await mj.promise;
       if (m.status !== 'done') throw new Error(m.error || 'Birləşdirmə alınmadı');
       t.file = m.file; t.status = 'done';

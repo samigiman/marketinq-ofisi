@@ -195,7 +195,7 @@ export function createMemory(root, dir = path.join(root, 'yaddas'), { now = () =
     if (!ruflo.available || !ruflo.ready || !query) return [];
     try {
       const out = await run(['memory', 'search', '-q', model.query + String(query).slice(0, 200), '-n', ns(agentId), '--path', db,
-        '-l', String(n), '--format', 'json'], 15000);
+        '-l', String(n), '--format', 'json'], 30000); // yük altında (paralel işlər + yazmalar) 15 saniyə çatmırdı
       const j = JSON.parse(out.slice(out.indexOf('{')));
       const res = j.results || [];
       if (!res.length) return [];
