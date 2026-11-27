@@ -4,7 +4,7 @@ import { screenMeshes } from './office.js';
 import { AGENTS, timers, hitboxes } from './agents.js';
 import { flush, loadAll } from './monitors.js';
 import { drawDash, drawKanban, tickKPI, callMeeting, meeting, camp, followCampaign, resumeLink } from './scenarios.js';
-import { select, selected, log, refreshPanels, updateNear, simSpeed, stepCamera, openComputer, stopFollow } from './ui.js';
+import { select, deselect, log, refreshPanels, updateNear, simSpeed, stepCamera, openComputer, stopFollow } from './ui.js';
 import { rand, pick, esc, clock } from './util.js';
 import { WORLD } from '../team.js';
 import { live } from '../live.js';
@@ -26,7 +26,7 @@ renderer.domElement.addEventListener('pointerdown', e => { downAt = [e.clientX, 
 renderer.domElement.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
   const h = pick3d(e);
-  if (!h) { if (selected) select(null); return; }
+  if (!h) { deselect(); return; }
   select(h.agent, true);
   if (h.screen) openComputer(h.agent);
 });

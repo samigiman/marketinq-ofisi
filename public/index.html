@@ -18,12 +18,14 @@
 </head>
 <body>
 <div id="loading">Ofis açılır…</div>
-<div id="app">
-  <header id="top"></header>
-  <aside id="left" aria-label="Komanda"></aside>
-  <main id="stage"><div id="near" aria-live="polite"></div></main>
-  <aside id="right" aria-label="Panel"></aside>
-</div>
+<main id="stage"></main>
+<header id="hud-l" class="glass"></header>
+<div id="hud-r" class="glass"></div>
+<button id="campChip" class="glass" type="button"></button>
+<aside id="left" class="glass" aria-label="Komanda"></aside>
+<aside id="right" class="glass" aria-label="Panel"></aside>
+<nav id="dock" class="glass" aria-label="Bölmələr"></nav>
+<div id="near" aria-live="polite"></div>
 <div id="toast" role="status"></div>
 <script type="module" src="js/main.js"></script>
 </body>

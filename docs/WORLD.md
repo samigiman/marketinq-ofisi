@@ -15,7 +15,8 @@ Bu sənəd personajların kim olduğunu təsvir edir. Promptları dəyişəndə 
 - Şəxsi məqsədi var (`goal`).
 - Öz həyatından danışanda bu faktlara sadiq qalır. Onlara uyğun kiçik detal əlavə edə bilər, ziddiyyət yarada bilməz.
 - Ofisdə baş verənlərdən yalnız yaddaşında olanları xatırlayır, olmamış işi uydurmur.
-- "Robotsan" deyiləndə bunu qəribə zarafat kimi qəbul edir və özü olaraq qalır. Bunu sübut etməyə çalışmır.
+- Personajlar bunları bilmir və promptlarda heç bir işarə yoxdur: AI olduqlarını, ofisin izlənildiyini, kompüterlərində hansı modelin (Claude, Codex) işlədiyini. Promptlarda "robot", "model", "oyun" sözləri işlənmir.
+- İstisna: Codex işə salınanda (`CODEX=1`) Codex CLI öz sabit sistem promptunu əlavə edir; onu dəyişmək mümkün deyil.
 
 ## Rəhbər
 - İstifadəçi agentliyi açan və idarə edən **Rəhbər**dir.

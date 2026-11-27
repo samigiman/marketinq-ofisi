@@ -2,7 +2,8 @@
 import { THREE } from './kit.js';
 import { clamp } from './util.js';
 
-export const GX0 = -22, GZ0 = -16, CS = 0.5, GW = 88, GH = 64;
+// Otaq: x -20..20, z -14..14
+export const GX0 = -20, GZ0 = -14, CS = 0.5, GW = 80, GH = 56;
 const blocked = new Uint8Array(GW * GH);
 const cost = new Float32Array(GW * GH).fill(1);
 const cellOf = (x, z) => [Math.floor((x - GX0) / CS), Math.floor((z - GZ0) / CS)];

@@ -21,37 +21,39 @@ export function log(agent, html) {
 let toastT;
 export function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600); }
 
-/* ---------------- yuxarı zolaq ---------------- */
-$('top').innerHTML = `
-  <button class="iconbtn mob" id="mTeam" aria-label="Komanda">${icon('users')}</button>
-  <div class="brand"><b>${esc(WORLD.company)}</b><span>${esc(WORLD.floor)}</span></div>
-  <button id="campChip" type="button"></button>
-  <div class="spacer"></div>
-  <span id="clock">09:00</span>
-  <span id="liveBadge" class="mode off"><i></i>Simulyasiya</span>
+/* ---------------- yuxarı: üzən şüşə zolaqlar və aşağıda dok ---------------- */
+$('hud-l').innerHTML = `<div class="brand"><b>${esc(WORLD.company)}</b><span>${esc(WORLD.floor)}</span></div>
+  <span id="clock">09:00</span><span id="liveBadge" class="mode off"><i></i>Simulyasiya</span>`;
+$('hud-r').innerHTML = `
   <div class="seg desk-only" id="speed" role="group" aria-label="Sürət"><button data-s="1" class="on">1×</button><button data-s="2">2×</button><button data-s="4">4×</button></div>
   <button class="iconbtn desk-only" id="btnCam" title="Kamera bucağı" aria-label="Kamera bucağı">${icon('video')}</button>
   <button class="iconbtn on desk-only" id="btnNames" title="Adları göstər" aria-label="Adları göstər">${icon('tag')}</button>
-  <button class="iconbtn" id="btnBook" title="Ofisin kitabı" aria-label="Ofisin kitabı">${icon('book')}</button>
-  <button class="iconbtn mob" id="mPanel" aria-label="Panel">${icon('menu')}</button>`;
+  <button class="iconbtn" id="btnBook" title="Ofisin kitabı" aria-label="Ofisin kitabı">${icon('book')}</button>`;
+$('dock').innerHTML = `
+  <button id="dTeam" type="button">${icon('users')}Komanda</button>
+  <button id="dLog" type="button">${icon('terminal')}Jurnal</button>
+  <span class="sep"></span>
+  <button id="btnCamp" type="button">${icon('rocket')}Kampaniya</button>
+  <button id="btnMeet" type="button">${icon('calendar')}Görüş</button>
+  <button id="btnOut" type="button">${icon('folder')}İşlər</button>`;
 
-/* ---------------- sol: komanda ---------------- */
+/* ---------------- sol: komanda (üzən panel) ---------------- */
 const rowEls = {};
 $('left').innerHTML = `
-  <div class="side-h"><h2>Komanda</h2><span class="small muted">${TEAM.length} nəfər</span></div>
-  <div id="team"></div>
-  <div class="side-f">
-    <button class="btn primary" id="btnCamp">${icon('rocket', 16)}Kampaniya başlat</button>
-    <button class="btn" id="btnMeet">${icon('calendar', 16)}Görüş</button>
-    <button class="btn" id="btnOut">${icon('folder', 16)}İşlər</button>
-  </div>`;
+  <div class="side-h"><h2>Komanda</h2><span class="small muted">${TEAM.length} nəfər</span><button class="iconbtn" id="lX" aria-label="Bağla">${icon('x')}</button></div>
+  <div id="team"></div>`;
+const setLeft = open => { $('left').classList.toggle('open', open); $('dTeam').classList.toggle('on', open); if (open && mobile()) setRight(false); };
+const setRight = open => { $('right').classList.toggle('open', open); $('dLog').classList.toggle('on', open && !selected); if (open && mobile()) setLeft(false); };
+$('lX').onclick = () => setLeft(false);
+$('dTeam').onclick = () => setLeft(!$('left').classList.contains('open'));
+$('dLog').onclick = () => { if (selected) { select(null); setRight(true); } else setRight(!$('right').classList.contains('open')); };
 for (const [k, dp] of Object.entries(DEPTS)) {
   const h = document.createElement('div'); h.className = 'dept'; h.textContent = dp.name; $('team').appendChild(h);
   for (const a of AGENTS.filter(a => a.def.dept === k)) {
     const r = document.createElement('button'); r.type = 'button'; r.className = 'row';
     r.innerHTML = `<span class="av" style="--c:${a.color}">${esc(initials(a.def.name))}</span><span class="info"><span class="n">${esc(a.def.name)}<small>${esc(a.def.role)}</small></span>
       <span class="st"><i class="sdot"></i><span class="tx"></span></span></span>`;
-    r.onclick = () => { select(a, true); if (mobile()) $('left').classList.remove('open'); };
+    r.onclick = () => { select(a, true); if (mobile()) setLeft(false); };
     $('team').appendChild(r);
     rowEls[a.id] = { r, dot: r.querySelector('.sdot'), tx: r.querySelector('.tx') };
   }
@@ -67,8 +69,9 @@ export const followState = () => follow;
 export const stopFollow = () => { follow = false; };
 
 function renderOffice() {
-  right.innerHTML = `<div class="scroll"><section class="sec" id="campSec"></section>
+  right.innerHTML = `<div class="side-h"><h2>Ofis</h2><button class="iconbtn" id="rX" aria-label="Bağla">${icon('x')}</button></div><div class="scroll"><section class="sec" id="campSec"></section>
     <section class="sec"><h3 class="lab">Ofis jurnalı</h3><div class="feed" id="feed">${feed.join('') || '<div class="empty">Hələ heç nə olmayıb.</div>'}</div></section></div>`;
+  $('rX').onclick = () => setRight(false);
   renderCampaign();
 }
 
@@ -78,7 +81,7 @@ export function renderCampaign() {
   if (!c) { chip.className = ''; chip.innerHTML = ''; } else {
     chip.className = 'show';
     chip.innerHTML = `${icon('rocket', 16)}<span>«${esc(c.name)}» · ${c.done ? 'hazırdır' : c.error ? 'dayandı' : `${Math.min(c.step + 1, PIPE.length)}/${PIPE.length}`}</span>`;
-    chip.onclick = () => select(null);
+    chip.onclick = () => { select(null); setRight(true); };
   }
   const sec = $('campSec'); if (!sec) return;
   if (!c) { sec.innerHTML = `<h3 class="lab">Kampaniya</h3><div class="empty">Gedən kampaniya yoxdur. Soldakı <b>Kampaniya başlat</b> ilə başladın.</div>`; return; }
@@ -102,13 +105,13 @@ const activityOf = a => `${STATUS[a.status][0]}: ${a.task || a.bubbleText || 'ma
 export function select(a, focus = false) {
   if (selected) { selected.el.classList.remove('sel'); rowEls[selected.id].r.classList.remove('sel'); selected.faceBoss = false; }
   selected = a; setSelectedAgent(a);
-  if (!a) { selRing.visible = false; follow = false; renderOffice(); return; }
+  if (!a) { selRing.visible = false; follow = false; renderOffice(); $('dLog').classList.toggle('on', right.classList.contains('open')); return; }
   a.el.classList.add('sel'); rowEls[a.id].r.classList.add('sel');
   rowEls[a.id].r.scrollIntoView({ block: 'nearest' });
   selRing.visible = true;
   a.faceBoss = true; a.waveT = 1.2;
   renderPerson(a);
-  if (mobile()) right.classList.add('open');
+  setRight(true); $('dLog').classList.remove('on');
   if (focus) { follow = true; focusOn(a, 12); }
 }
 hooks.select = select;
@@ -137,7 +140,7 @@ function renderPerson(a) {
     </div></div>
     <div class="pane" data-pane="pc"><div class="scroll" id="pcBox"></div></div>
     <div class="pane" data-pane="mem"><div class="scroll" id="memBox"></div></div>`;
-  $('pX').onclick = () => { select(null); if (mobile()) right.classList.remove('open'); };
+  $('pX').onclick = () => { select(null); setRight(false); };
   right.querySelectorAll('.tabs button').forEach(b => (b.onclick = () => setTab(b.dataset.tab)));
   right.querySelectorAll('.sugg button').forEach(b => (b.onclick = () => sendChat(a, b.textContent)));
   $('chatForm').onsubmit = e => { e.preventDefault(); const i = $('chatIn'); const v = i.value.trim(); if (v) { i.value = ''; sendChat(a, v); } };
@@ -346,7 +349,7 @@ $('btnCamp').onclick = () => { $('campDlg').classList.add('show'); setTimeout(()
 $('campForm').onsubmit = e => {
   e.preventDefault(); const i = $('campName');
   startCampaign(i.value.trim() || pick(['Novruz 2027', 'Yeni il endirimi', 'Yay kolleksiyası']));
-  i.value = ''; closeDlg(); select(null);
+  i.value = ''; closeDlg(); select(null); setRight(true);
 };
 $('btnMeet').onclick = () => callMeeting();
 $('btnOut').onclick = async () => {
@@ -365,11 +368,9 @@ $('btnNames').onclick = e => { const off = document.body.classList.toggle('hide-
 $('btnCam').onclick = () => { viewIdx = (viewIdx + 1) % VIEWS.length; const v = VIEWS[viewIdx]; follow = false; tweenCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t)); };
 export let simSpeed = 1;
 document.querySelectorAll('#speed button').forEach(b => (b.onclick = () => { simSpeed = +b.dataset.s; document.querySelectorAll('#speed button').forEach(x => x.classList.toggle('on', x === b)); }));
-$('mTeam').onclick = () => { right.classList.remove('open'); $('left').classList.toggle('open'); };
-$('mPanel').onclick = () => { $('left').classList.remove('open'); right.classList.toggle('open'); };
 addEventListener('keydown', e => {
   const typing = /INPUT|TEXTAREA/.test(document.activeElement?.tagName || '');
-  if (e.key === 'Escape') { if (typing) document.activeElement.blur(); if (document.querySelector('.dlg.show')) closeDlg(); else select(null); }
+  if (e.key === 'Escape') { if (typing) document.activeElement.blur(); if (document.querySelector('.dlg.show')) closeDlg(); else if (selected) { select(null); setRight(false); } else { setLeft(false); setRight(false); } }
   if (e.key === 'Enter' && !typing && nearAgent && !selected) { e.preventDefault(); select(nearAgent, true); }
 });
 
@@ -388,3 +389,6 @@ export function stepCamera(rdt) {
   }
   selRingFollow();
 }
+
+// Ofisdə boş yerə klik: seçimi götür və personaj panelini bağla.
+export function deselect() { if (!selected) return; select(null); $('right').classList.remove('open'); $('dLog').classList.remove('on'); }
