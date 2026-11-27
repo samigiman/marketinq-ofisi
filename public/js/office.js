@@ -3,7 +3,7 @@
 // şərqdə səs studiyası, mətbəx adası və launj, cənub divarında lövhə, ekran və kitab rəfi.
 // Koordinatlar naviqasiya ilə bağlıdır: oturacaq və fasilə yerləri buradan gəlir. Otaq: x -20..20, z -14..14.
 import { THREE, office, M, box, cyl, sph, canvasTex, basicPlane, FONT } from './kit.js';
-import { block, addCost } from './nav.js';
+import { block, unblock, addCost } from './nav.js';
 import { PI, pick, seeded, hash } from './util.js';
 import { DEPTS, TEAM, WORLD } from '../team.js';
 
@@ -112,14 +112,14 @@ function rug(x, z, w, d, color) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.015, d), M(color, { r: 1 }));
   m.position.set(x, 0.008, z); m.receiveShadow = true; office.add(m); return m;
 }
-function floorPatch(x, z, w, d, tex, rep) {
+function floorPatch(x, z, w, d, tex, rep, parent = office) {
   const t = tex.clone(); t.needsUpdate = true; t.repeat.set(w / rep, d / rep);
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, d), new THREE.MeshStandardMaterial({ map: t, roughness: 0.75 }));
-  m.rotation.x = -PI / 2; m.position.set(x, 0.006, z); m.receiveShadow = true; office.add(m);
+  m.rotation.x = -PI / 2; m.position.set(x, 0.006, z); m.receiveShadow = true; parent.add(m);
 }
-function wallText(text, x, y, z, rotY, w, size = 64, color = '#34312b') {
+function wallText(text, x, y, z, rotY, w, size = 64, color = '#34312b', parent = office) {
   const tex = canvasTex(1024, 180, (g, W, H) => { g.clearRect(0, 0, W, H); g.textAlign = 'center'; g.fillStyle = color; g.font = `600 ${size}px ${FONT}`; g.letterSpacing = '10px'; g.fillText(text, W / 2, H / 2 + size / 3); });
-  const m = basicPlane(w, w * 180 / 1024, tex, true); m.position.set(x, y, z); m.rotation.y = rotY; office.add(m);
+  const m = basicPlane(w, w * 180 / 1024, tex, true); m.position.set(x, y, z); m.rotation.y = rotY; parent.add(m);
 }
 
 /* İş yeri ortaq masada: monitor, klaviatura, kiçik əşyalar, stul. facing=+1 → işçi +z istiqamətinə baxır. */
@@ -163,13 +163,6 @@ function station(x, dz, facing, def) {
   if (dual) { const m2 = monitor(work, 0.44, 0.77, 0.18, -0.26, 0.74, { tex: canvasTex(384, 240, appScreen(def.screen === 'dash' ? 'text' : 'dash', R)) }); m2.userData.agentId = def.id; screenMeshes.push(m2); }
   box(work, 0.46, 0.018, 0.15, '#2b2d2f', 0, 0.778, -0.15, 0.004);
   box(work, 0.06, 0.02, 0.1, '#2b2d2f', 0.34, 0.778, -0.15, 0.008);
-  // boş yerdə ortaq masa əşyaları
-  const spare = new THREE.Group(); g.add(spare); const RS = seeded(hash(def.id) + 3), k = RS() * 4 | 0;
-  const sp = (geo, col, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, M(col)); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; spare.add(m); return m; };
-  if (k === 0) { sp(new THREE.BoxGeometry(0.34, 0.02, 0.24), '#b9bcc0', 0, 0.785, 0, 0.3); sp(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 10), '#f1ede6', 0.3, 0.82, 0.1); }
-  if (k === 1) { cyl(spare, 0.12, 0.1, 0.2, C.terracotta, 0, 0.87, 0.05, 12); sph(spare, 0.17, leafM, 0, 1.05, 0.05, 10).scale.set(1, 0.8, 1); }
-  if (k === 2) for (let i = 0; i < 4; i++) sp(new THREE.BoxGeometry(0.22, 0.012, 0.3), ['#e2b23a', '#36546b', '#f1ede6', '#7a3e33'][i], (i - 1.5) * 0.06, 0.785 + i * 0.013, 0, i * 0.25);
-  if (k === 3) { sp(new THREE.BoxGeometry(0.4, 0.26, 0.3), '#b8936b', 0, 0.9, 0.05, 0.1); }
   cyl(g, 0.042, 0.038, 0.1, pick([C.terracotta, '#f1ede6', C.sage, C.blue]), -0.68, 0.82, -0.08, 12);
   if (def.prop === 'tablet') box(g, 0.36, 0.014, 0.26, '#1f2120', 0.6, 0.776, -0.1, 0.01);
   if (def.prop === 'books') for (let i = 0; i < 4; i++) box(g, 0.26, 0.05, 0.19, ['#7a3e33', '#36546b', '#c9b48a', '#2f3640'][i], -0.68, 0.795 + i * 0.054, 0.22, 0.005).rotation.y = (i - 1.5) * 0.1;
@@ -180,8 +173,7 @@ function station(x, dz, facing, def) {
   registerDesk(def, clutter(g, def, seeded(hash(def.id) + 7)), scr, R);
   const seat = { x, z: dz - facing * 1.0, rot: facing > 0 ? 0 : PI, drop: -0.25 };
   const ch = chair(seat.x, seat.z, seat.rot);
-  addCost(seat.x, seat.z, 0.5, 5);
-  Object.assign(DESKS[def.id], { work, spare, chair: ch });
+  Object.assign(DESKS[def.id], { work, chair: ch, g });
   return seat;
 }
 
@@ -194,7 +186,7 @@ function registerDesk(def, items, scr, R) {
 export function setDesk(id, active) {
   const d = DESKS[id]; if (!d) return;
   d.items.visible = active; active ? d.on() : d.off(); d.scr.active = active;
-  if (d.work) { d.work.visible = active; d.spare.visible = !active; d.chair.visible = active; }
+  if (d.work) { d.g.visible = active; d.chair.visible = active; }
 }
 
 /* ---------------- bina ---------------- */
@@ -233,34 +225,69 @@ const COLS = [];
 for (const x of [-7, 5]) for (const z of [-5.5, 0.5, 6.5]) COLS.push([x, z]);
 for (const [x, z] of COLS) { cyl(office, 0.16, 0.18, wallH, C.iron, x, wallH / 2, z, 16); cyl(office, 0.26, 0.26, 0.12, C.iron, x, wallH - 0.06, z, 16); block(x - 0.2, z - 0.2, x + 0.2, z + 0.2, 0.1); }
 
-/* ---- dörd uzun ortaq masa ---- */
-const TABLES = [
-  { z: -8.5, dept: 'creative', ids: ['artdir', 'designer', 'junior', 'motion', 'video', 'uiux'] },
-  { z: -2.5, dept: 'content',  ids: ['smm', 'smmcopy', 'copy', 'strateg', 'community', 'pr'] },
-  { z: 3.5,  dept: 'perf',     ids: ['target', 'ppc', 'digital', 'seo', 'analyst', 'crm'] },
-  { z: 9.5,  dept: 'lead',     ids: ['marketer', 'brand', 'pm', 'account'] },
-];
+/* ---- uzun ortaq masalar: ofis komanda ilə böyüyür ---- */
+// Masalar yalnız lazım olanda görünür. Hər yeni işçi ilk boş yerə oturur; masa dolanda növbəti masa açılır.
+// Masada heç kim qalmasa, masa yığışdırılır və keçid açılır. Elvinin otağı və studiya sabitdir.
+const TABLE_Z = [-2.5, 3.5, -8.5, 9.5], TABLE_N = [3, 3, 3, 2]; // doldurma sırası; N = bir tərəfdəki yer sayı
 export const SEATS = {};
 const defOf = id => TEAM.find(t => t.id === id);
 const lampMat = new THREE.MeshBasicMaterial({ color: '#fff2da', toneMapped: false });
-for (const t of TABLES) {
-  const n = t.ids.length / 2, L = n * 2.0 + 0.5, cx = -1;
-  floorPatch(cx, t.z, L + 2.6, 4.6, parquetTex, 1.6);
-  box(office, L, 0.05, 1.9, C.oak, cx, 0.75, t.z, 0.01);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(office, 0.06, 0.73, 0.06, C.iron, cx + sx * (L / 2 - 0.15), 0.365, t.z + sz * 0.8, 0);
-  box(office, L - 0.3, 0.04, 0.04, C.iron, cx, 0.12, t.z, 0);
-  t.ids.forEach((id, i) => {
-    const side = i < n ? 1 : -1, k = i % n;
+const TABLES = [], SLOTS = [];
+TABLE_Z.forEach((z, ti) => {
+  const n = TABLE_N[ti], L = n * 2.0 + 0.5, cx = -1;
+  const tg = new THREE.Group(); tg.visible = false; office.add(tg);
+  floorPatch(cx, z, L + 2.6, 4.6, parquetTex, 1.6, tg);
+  box(tg, L, 0.05, 1.9, C.oak, cx, 0.75, z, 0.01);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(tg, 0.06, 0.73, 0.06, C.iron, cx + sx * (L / 2 - 0.15), 0.365, z + sz * 0.8, 0);
+  box(tg, L - 0.3, 0.04, 0.04, C.iron, cx, 0.12, z, 0);
+  box(tg, L - 0.6, 0.06, 0.14, C.iron, cx, 3.3, z, 0.01, false);
+  const strip = new THREE.Mesh(new THREE.PlaneGeometry(L - 0.7, 0.08), lampMat); strip.rotation.x = PI / 2; strip.position.set(cx, 3.265, z); tg.add(strip);
+  for (const sx of [-1, 1]) cyl(tg, 0.005, 0.005, 0.9, C.iron, cx + sx * (L / 2 - 0.6), 3.75, z, 4, false);
+  const T = { tg, rect: [cx - L / 2, z - 0.95, cx + L / 2, z + 0.95], slots: [] };
+  for (let i = 0; i < n * 2; i++) {
+    const side = i % 2 ? -1 : 1, k = i >> 1;
     const x = cx + (k - (n - 1) / 2) * 2.0;
-    SEATS[id] = station(x, t.z - side * 0.48, side, defOf(id));
-  });
-  block(cx - L / 2, t.z - 0.95, cx + L / 2, t.z + 0.95, 0.12);
-  // uzun xətti lampa
-  box(office, L - 0.6, 0.06, 0.14, C.iron, cx, 3.3, t.z, 0.01, false);
-  const strip = new THREE.Mesh(new THREE.PlaneGeometry(L - 0.7, 0.08), lampMat); strip.rotation.x = PI / 2; strip.position.set(cx, 3.265, t.z); office.add(strip);
-  for (const sx of [-1, 1]) cyl(office, 0.005, 0.005, 0.9, C.iron, cx + sx * (L / 2 - 0.6), 3.75, t.z, 4, false);
-  // masanın ucunda kiçik şöbə lövhəsi
-  wallText(DEPTS[t.dept].name.toUpperCase(), cx - L / 2 - 0.02, 0.95, t.z, -PI / 2, 1.6, 52, '#6a6458');
+    // boş yerdə ortaq əşyalar (bitki, noutbuk, jurnallar, qutu)
+    const spare = new THREE.Group(); spare.position.set(x, 0, z - side * 0.48); spare.rotation.y = side > 0 ? 0 : PI; tg.add(spare);
+    const RS = seeded(ti * 17 + i + 3), kind = RS() * 4 | 0;
+    const sp = (geo, col, px, py, pz, ry = 0) => { const m = new THREE.Mesh(geo, M(col)); m.position.set(px, py, pz); m.rotation.y = ry; m.castShadow = true; spare.add(m); return m; };
+    if (kind === 0) { sp(new THREE.BoxGeometry(0.34, 0.02, 0.24), '#b9bcc0', 0, 0.785, 0, 0.3); sp(new THREE.CylinderGeometry(0.04, 0.035, 0.09, 10), '#f1ede6', 0.3, 0.82, 0.1); }
+    if (kind === 1) { cyl(spare, 0.12, 0.1, 0.2, C.terracotta, 0, 0.87, 0.05, 12); sph(spare, 0.17, leafM, 0, 1.05, 0.05, 10).scale.set(1, 0.8, 1); }
+    if (kind === 2) for (let j = 0; j < 4; j++) sp(new THREE.BoxGeometry(0.22, 0.012, 0.3), ['#e2b23a', '#36546b', '#f1ede6', '#7a3e33'][j], (j - 1.5) * 0.06, 0.785 + j * 0.013, 0, j * 0.25);
+    if (kind === 3) sp(new THREE.BoxGeometry(0.4, 0.26, 0.3), '#b8936b', 0, 0.9, 0.05, 0.1);
+    const slot = { table: T, x, dz: z - side * 0.48, side, spare, who: null };
+    T.slots.push(slot); SLOTS.push(slot);
+  }
+  TABLES.push(T);
+});
+// hər personajın iş yeri bir dəfə qurulur (gizli), sonra yerə köçürülür
+for (const t of TEAM) if (t.id !== 'cmo' && t.id !== 'composer') { SEATS[t.id] = station(SLOTS[0].x, SLOTS[0].dz, 1, t); DESKS[t.id].g.visible = false; DESKS[t.id].chair.visible = false; }
+
+function refreshTables() {
+  for (const T of TABLES) {
+    const used = T.slots.some(s => s.who);
+    if (used !== T.tg.visible) { T.tg.visible = used; used ? block(...T.rect, 0.12) : unblock(...T.rect, 0.12); }
+    for (const s of T.slots) s.spare.visible = !s.who;
+  }
+}
+// İşə götürüləndə: ilk boş yeri tut, iş yerini oraya köçür. Oturacaq nöqtəsini qaytarır.
+export function assignSeat(id) {
+  if (!DESKS[id]?.g) return SEATS[id];
+  let slot = SLOTS.find(s => s.who === id) || SLOTS.find(s => !s.who);
+  if (!slot) return SEATS[id];
+  slot.who = id;
+  const d = DESKS[id], rot = slot.side > 0 ? 0 : PI;
+  d.g.position.set(slot.x, 0, slot.dz); d.g.rotation.y = rot;
+  const seat = SEATS[id]; Object.assign(seat, { x: slot.x, z: slot.dz - slot.side * 1.0, rot });
+  d.chair.position.set(seat.x, 0, seat.z); d.chair.rotation.y = rot;
+  addCost(seat.x, seat.z, 0.5, 5);
+  refreshTables();
+  return seat;
+}
+export const tableState = () => TABLES.map(T => T.tg.visible); // hansı masalar açıqdır (yoxlama üçün)
+export function releaseSeat(id) {
+  const slot = SLOTS.find(s => s.who === id); if (slot) slot.who = null;
+  refreshTables();
 }
 
 /* ---- Elvinin otağı (şimal-qərb), qara çərçivəli şüşə ---- */

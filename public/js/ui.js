@@ -362,7 +362,7 @@ function focusOn(a, dist = 17) {
   if (dir.y < 0.42) { dir.y = 0.42; dir.normalize(); }
   tweenCam(tt.clone().add(dir.multiplyScalar(dist)), tt);
 }
-const VIEWS = [{ p: [33, 40, 44], t: [0, 0, 0] }, { p: [0, 58, 10], t: [0, 0, 1] }, { p: [-30, 28, 32], t: [-1, 0, 0] }, { p: [0, 12, 30], t: [0, 1, 4] }];
+const VIEWS = [{ p: [12, 14, 12], t: [-1, 0, -2.5] }, { p: [33, 40, 44], t: [0, 0, 0] }, { p: [0, 58, 10], t: [0, 0, 1] }, { p: [-30, 28, 32], t: [-1, 0, 0] }, { p: [0, 12, 30], t: [0, 1, 4] }];
 let viewIdx = 0;
 controls.addEventListener('start', () => { follow = false; camAnim = null; });
 export const selRingFollow = () => { if (selected) selRing.position.set(selected.pos.x, 0.03, selected.pos.z); };

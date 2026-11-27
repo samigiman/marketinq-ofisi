@@ -2,7 +2,7 @@
 import { THREE, scene, camera, M, box, cyl, sph } from './kit.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { findPath } from './nav.js';
-import { SEATS, POIS, setDesk } from './office.js';
+import { SEATS, POIS, setDesk, assignSeat, releaseSeat } from './office.js';
 import { PI, rand, pick, lerp, clamp, wrapA, hash, esc, clockStr, hooks, fileLink, shuffle } from './util.js';
 import { TEAM, DEPTS } from '../team.js';
 import { buildCute } from './cute.js';
@@ -274,20 +274,21 @@ for (const def of TEAM) AGENTS.push(new Agent(def, SEATS[def.id]));
 /* ---------------- heyət: kim ofisdədir ---------------- */
 export const ENTRY = { x: -6, z: 13.2 }; // giriş: cənub tərəfdə
 export const isHired = id => AGENTS.find(a => a.id === id)?.hired;
-function show(a, on) { a.group.visible = on; a.labelObj.visible = on; setDesk(a.id, on); }
+function show(a, on) {
+  if (on) a.seat = assignSeat(a.id); else releaseSeat(a.id); // masa yeri: ilk boş yer
+  a.group.visible = on; a.labelObj.visible = on; setDesk(a.id, on);
+}
 // ilk yükləmədə: animasiyasız
 export function initStaff(ids) {
-  for (const a of AGENTS) {
-    a.hired = ids.includes(a.id); show(a, a.hired);
-    if (!a.hired) { a.interrupt(); a.mode = 'away'; a.status = 'away'; a.task = ''; }
-  }
+  for (const a of AGENTS) if (!ids.includes(a.id)) { a.hired = false; show(a, false); a.interrupt(); a.mode = 'away'; a.status = 'away'; a.task = ''; }
+  for (const id of ids) { const a = byId(id); if (!a) continue; a.hired = true; show(a, true); a.pos.set(a.seat.x, 0, a.seat.z); a.rot = a.targetRot = a.seat.rot; }
 }
 // serverdən gələn siyahı ilə tutuşdur (animasiyasız)
 export function syncStaff(ids) {
-  for (const a of AGENTS) {
-    const should = ids.includes(a.id);
-    if (should && !a.hired) { a.hired = true; show(a, true); a.pos.set(a.seat.x, 0, a.seat.z); a.sit = a.sitTarget = 1; a.startLife(); }
-    if (!should && a.hired) { a.hired = false; a.interrupt(); show(a, false); a.mode = 'away'; a.status = 'away'; a.task = ''; }
+  for (const a of AGENTS) if (!ids.includes(a.id) && a.hired) { a.hired = false; a.interrupt(); show(a, false); a.mode = 'away'; a.status = 'away'; a.task = ''; }
+  for (const id of ids) {
+    const a = byId(id); if (!a || a.hired) continue;
+    a.hired = true; show(a, true); a.pos.set(a.seat.x, 0, a.seat.z); a.rot = a.targetRot = a.seat.rot; a.sit = a.sitTarget = 1; a.startLife();
   }
 }
 // işə götürüldü: girişdən içəri girir və masasına keçir

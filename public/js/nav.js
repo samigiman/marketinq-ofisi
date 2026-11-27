@@ -14,6 +14,13 @@ export function block(x0, z0, x1, z1, pad = 0.2) {
   for (let r = Math.max(0, r0); r <= Math.min(GH - 1, r1); r++)
     for (let c = Math.max(0, c0); c <= Math.min(GW - 1, c1); c++) blocked[r * GW + c] = 1;
 }
+// Yığışdırılan mebel üçün: sahəni yenidən keçilən et
+export function unblock(x0, z0, x1, z1, pad = 0.2) {
+  const [c0, r0] = cellOf(Math.min(x0, x1) - pad, Math.min(z0, z1) - pad);
+  const [c1, r1] = cellOf(Math.max(x0, x1) + pad, Math.max(z0, z1) + pad);
+  for (let r = Math.max(0, r0); r <= Math.min(GH - 1, r1); r++)
+    for (let c = Math.max(0, c0); c <= Math.min(GW - 1, c1); c++) blocked[r * GW + c] = 0;
+}
 export function addCost(x, z, rad, v) {
   for (let r = 0; r < GH; r++) for (let c = 0; c < GW; c++) {
     const cx = GX0 + (c + 0.5) * CS, cz = GZ0 + (r + 0.5) * CS;

@@ -25,9 +25,9 @@ scene.background = new THREE.Color('#e4e0d8');
 scene.fog = new THREE.Fog('#e4e0d8', 90, 180);
 
 export const camera = new THREE.PerspectiveCamera(36, 1, 0.5, 400);
-camera.position.set(33, 40, 44);
+camera.position.set(12, 14, 12); // başlanğıcda komandaya yaxın: ofis böyüdükcə uzaqlaşmaq olar
 export const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 0, 0);
+controls.target.set(-1, 0, -2.5);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.maxPolarAngle = 1.36;
