@@ -266,3 +266,21 @@ test('sosial şəbəkə: işə götürmə yazışma yaradır, hesabat; internetd
     assert.equal((await rawGet(s.base, '/index.html', auth)).status, 403);
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });
+
+test('ortaq arxiv: tapşırıq Drive/Canva materialı ilə gedir, DOCS=0 olanda rədd olunur', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    const started = waitEvent(s.base, ev => ev.type === 'job' && ev.phase === 'start');
+    const done = waitEvent(s.base, ev => ev.type === 'job' && ev.phase === 'done');
+    const r = await post(s.base, '/api/task', { agentId: 'cmo', text: 'Brend qaydalarına görə post', docs: true });
+    assert.equal(r.status, 200);
+    assert.equal((await started).docs, true);
+    await done;
+    assert.ok((await fetch(s.base + '/api/health').then(r => r.json())).docs > 0);
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+  const dir2 = await tmp(); const s2 = await startServer(dir2, 0, { DOCS: '0' });
+  try {
+    assert.equal((await post(s2.base, '/api/task', { agentId: 'cmo', text: 'x', docs: true })).status, 409);
+    assert.equal((await post(s2.base, '/api/task', { agentId: 'cmo', text: 'x' })).status, 200);
+  } finally { await s2.stop(); await rm(dir2, { recursive: true, force: true }); }
+});

@@ -144,6 +144,8 @@ input[type=text]:focus,textarea:focus{border-color:var(--acc)}
 .skills{display:flex;gap:6px;flex-wrap:wrap}
 form.inline{display:flex;gap:8px}
 .hint{font-size:12px;color:var(--ink-2);margin:8px 0 0}
+.check{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:13px;color:var(--ink);cursor:pointer}
+.check input{width:16px;height:16px;margin:0;accent-color:var(--acc,#1f5f4a);cursor:pointer}
 
 /* kompüter (paneldə) */
 .pc-st{display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:12px}

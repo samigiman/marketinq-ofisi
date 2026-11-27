@@ -207,9 +207,9 @@ export async function startCampaign(name) {
 }
 
 /* ---------------- tapşırıq ---------------- */
-async function assignTaskLive(a, text) {
+async function assignTaskLive(a, text, opts = {}) {
   let jobId;
-  try { jobId = await live.task(a.id, text); }
+  try { jobId = await live.task(a.id, text, opts.docs === true); }
   catch (e) { hooks.toast(e.message); return; }
   hooks.log(a, `tapşırıq aldı: “${esc(text)}”${live.mode === 'mock' ? ' (demo)' : ''}`);
   hooks.toast(`${a.def.name} tapşırığı aldı`);
@@ -236,8 +236,8 @@ live.sub('job', ({ phase, agentId, text, file, error }) => {
   if (phase === 'error') { hooks.log(a, `“${esc(text)}” alınmadı: ${esc(error)}`); a.flash('Alınmadı', 3); }
 });
 
-export function assignTask(a, text) {
-  if (live.on) return assignTaskLive(a, text);
+export function assignTask(a, text, opts = {}) {
+  if (live.on) return assignTaskLive(a, text, opts);
   hooks.log(a, `tapşırıq aldı: “${esc(text)}” (simulyasiya)`);
   a.run(async () => {
     a.task = text; a.say(text);

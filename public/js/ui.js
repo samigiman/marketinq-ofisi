@@ -173,7 +173,8 @@ function renderPerson(a) {
     <div class="pane" data-pane="work"><div class="scroll">
       <h3 class="lab">Tapşırıq ver</h3>
       <form class="inline" id="taskForm"><input type="text" id="taskIn" maxlength="300" placeholder="məs: ${esc(pick(d.tasks))}" autocomplete="off"><button class="btn primary">Göndər</button></form>
-      <p class="hint">${modeHint}</p>
+      <label class="check"><input type="checkbox" id="taskDocs"> Ortaq qovluqdan material götür (Drive, Canva)</label>
+      <p class="hint">${modeHint} Material götürüləndə yalnız oxunur, heç nə dəyişdirilmir; bu tapşırıqda internet bağlı olur.</p>
       <h3 class="lab" style="margin-top:20px">Bacarıqlar</h3><div class="skills">${d.skills.map(s => `<span class="chip">${esc(s)}</span>`).join('')}</div>
       <h3 class="lab" style="margin-top:20px">Bu gün görülən işlər</h3><div class="hist" id="dH"></div>
       <h3 class="lab" style="margin-top:20px">Qorxusu</h3><p class="small muted" style="margin:0">${esc(p.fear || '')}</p>
@@ -186,7 +187,7 @@ function renderPerson(a) {
   right.querySelectorAll('.sugg button').forEach(b => (b.onclick = () => sendChat(a, b.textContent)));
   $('chatForm').onsubmit = e => { e.preventDefault(); const i = $('chatIn'); const v = i.value.trim(); if (v) { i.value = ''; sendChat(a, v); } };
   $('fireBtn') && ($('fireBtn').onclick = () => fire(a));
-  $('taskForm').onsubmit = e => { e.preventDefault(); const i = $('taskIn'); const v = i.value.trim() || i.placeholder.replace(/^məs: /, ''); i.value = ''; assignTask(a, v); };
+  $('taskForm').onsubmit = e => { e.preventDefault(); const i = $('taskIn'); const v = i.value.trim() || i.placeholder.replace(/^məs: /, ''); i.value = ''; assignTask(a, v, { docs: $('taskDocs').checked }); };
   renderChat(a); setTab(curTab); refreshDetail(true); renderMeta(a);
 }
 // əhval və təcrübə səviyyəsi

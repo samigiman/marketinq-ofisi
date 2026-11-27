@@ -93,15 +93,24 @@ Canlı rejimdə mətnləri ucuz model yazır: `SOCIAL_MAX_PER_HOUR` (default 40)
 Telefondan və ya internetdən baxmaq (yalnız sosial şəbəkə, ofisin idarəsi bağlı qalır):
 
 ```bash
-SOCIAL_PASSWORD=sizin-sifre npm start
+SOCIAL_PASSWORD="$(cat ~/.marketinq-sosial-sifre)" npm start
 cloudflared tunnel --url http://localhost:5180
 ```
 
-Açılan linkdə istifadəçi adı `rehber`, şifrə `SOCIAL_PASSWORD`-dur. Şifrəsiz internetdən heç nə açılmır.
+Açılan linkdə istifadəçi adı `rehber`, şifrə `SOCIAL_PASSWORD`-dur (uzun təsadüfi şifrə yaradın: `openssl rand -base64 33 > ~/.marketinq-sosial-sifre`). Şifrəsiz internetdən heç nə açılmır.
 
 ### Agentlərin brauzeri və iş metodikası
 
 Tapşırıqda agentlər internetdə axtarış edir və saytları oxuyur (`WEB=0` söndürür). Kompüterinizdəki marketinq skill-ləri (`~/.claude/plugins`, və ya `SKILLS_DIR`) hər rola uyğun iş metodikası kimi əlavə olunur.
+
+### Ortaq qovluq: Google Drive və Canva
+
+Tapşırıq formasında "Ortaq qovluqdan material götür" işarələnəndə, agent işə başlamazdan əvvəl ayrıca axtarış Drive və Canva hesablarınızdan tapşırığa aid materialları tapır. Agent onları şirkətin ortaq qovluğundan gələn sənəd kimi alır.
+
+- Connector-lar `claude` CLI-nin claude.ai girişindən gəlir: terminalda `claude` → `/login` → claude.ai hesabı.
+- Yalnız 13 oxuma aləti icazəlidir (axtarış, oxuma, siyahı). Yaratmaq, dəyişmək, paylaşmaq, silmək `dontAsk` rejimində rədd olunur, qalan connector-lar ümumiyyətlə gizlədilir.
+- Agentin özü hesablara qoşulmur. Material götürülən tapşırıqda agentin brauzeri söndürülür ki, hesablardan gələn məlumat internetə çıxmasın.
+- `DOCS=0` söndürür, `DOCS_MODEL` (default `sonnet`) axtarışın modelidir. Bir axtarış təxminən 1 dəqiqə və ~$0.1 çəkir.
 
 Seçimlər (mühit dəyişənləri):
 

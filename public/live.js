@@ -29,8 +29,8 @@ async function post(url, data) {
   return j;
 }
 
-live.task = async (agentId, text) => {
-  const { jobId } = await post('/api/task', { agentId, text });
+live.task = async (agentId, text, docs = false) => {
+  const { jobId } = await post('/api/task', { agentId, text, docs });
   if (!live.jobs.has(jobId)) live.jobs.set(jobId, { agentId, text, chars: 0, tail: '', done: false });
   return jobId;
 };
