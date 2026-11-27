@@ -39,6 +39,9 @@ const pc = createComputers({ team: TEAM, projectRoot: ROOT, emit: ev => emit(ev)
 const DOCS = process.env.DOCS !== '0';
 const docs = createDocs({ root: pc.root, model: process.env.DOCS_MODEL || 'sonnet', mock: () => claudeState.mode !== 'live' });
 await memory.init();
+// Unutma: saatda bir dəfə solub-gedən gündəlik xatirələr qeyd olunur və axtarışdan çıxarılır.
+memory.sweep().catch(() => {});
+setInterval(() => memory.sweep().catch(() => {}), Number(process.env.SWEEP_MS) || 3600 * 1000).unref();
 
 /* ---------------- köməkçilər ---------------- */
 const byId = Object.fromEntries(TEAM.map(t => [t.id, t]));
@@ -190,10 +193,19 @@ function worldRules(agent) {
   ].join('\n');
 }
 
+// Yaddaş insan kimidir (forget.mjs): iş dəqiq yadındadır, gündəlik şeylər solur, bəziləri dumanlıdır.
 function memoryBlock(recent, recalled) {
-  const lines = [...new Set([...recalled, ...recent.map(m => m.text)])].slice(-10);
-  return lines.length ? `\nOfisdə yadında qalanlar (son işlər və söhbətlər):\n- ${lines.join('\n- ')}`
-    : `\n${WORLD.boss} ilə hələ birbaşa iş görməmisən: bu, sizin ilk ciddi söhbətinizdir.`;
+  const seen = new Map();
+  for (const v of [...recalled, ...recent]) if (!seen.has(v.id)) seen.set(v.id, v);
+  const all = [...seen.values()].slice(-12);
+  if (!all.length) return `\n${WORLD.boss} ilə hələ birbaşa iş görməmisən: bu, sizin ilk ciddi söhbətinizdir.`;
+  const part = (title, list) => (list.length ? `\n${title}\n- ${list.map(v => v.shown).join('\n- ')}` : '');
+  return [
+    part('İşlə bağlı yadında olanlar (bunları dəqiq xatırlayırsan):', all.filter(v => v.stage === 'is')),
+    part('Ofisdəki gündəlik həyatdan yadında qalanlar:', all.filter(v => v.stage === 'aydın')),
+    part('Bunları dumanlı xatırlayırsan (detallar yadından çıxıb):', all.filter(v => v.stage === 'dumanlı')),
+    '\nYadında olmayanı xatırlayırmış kimi danışma və detal uydurma: unutduğun şeyi soruşsalar, adi insan kimi tam yadında olmadığını de.',
+  ].join('');
 }
 
 function chatSystem(agent, company, mem, activity) {
@@ -285,7 +297,7 @@ async function runAgent(agent, prompt, onDelta, topic = '', signal, { web = WEB 
     await pc.runMock(agent.id, { text, slugName: `${stamp()}_${slug(topic || task)}`, delay: MOCK_DELAY, signal });
     return fakeStream(text, onDelta);
   }
-  const [company, recent, recalled] = await Promise.all([companyContext(), memory.recent(agent.id, 6), memory.recall(agent.id, topic || prompt.slice(0, 200), 4)]);
+  const [company, recent, recalled] = await Promise.all([companyContext(), memory.vivid(agent.id, 6), memory.recall(agent.id, topic || prompt.slice(0, 200), 4)]);
   await slot();
   try {
     return await pc.run(agent.id, { model: MODEL, system: systemPrompt(agent, company, memoryBlock(recent, recalled), await skillBlock(agent.id), web), prompt, onDelta, web,
@@ -302,7 +314,7 @@ const MOCK_CHAT = [
 // Söhbət: qısa, xarakterli cavab; xatirələr Ruflo-dan gəlir.
 async function runChat(agent, message, history, activity, onDelta) {
   if (claudeState.mode !== 'live') return fakeStream(MOCK_CHAT[Math.floor(Math.random() * MOCK_CHAT.length)] + ' _(demo)_', onDelta, Math.min(MOCK_DELAY, 35));
-  const [company, recent, recalled] = await Promise.all([companyContext(), memory.recent(agent.id, 8), memory.recall(agent.id, message, 4)]);
+  const [company, recent, recalled] = await Promise.all([companyContext(), memory.vivid(agent.id, 8), memory.recall(agent.id, message, 4)]);
   const convo = history.slice(-10).map(h => `${h.role === 'me' ? WORLD.boss : agent.name}: ${String(h.text).slice(0, 500)}`).join('\n');
   const prompt = `${convo ? `Bu söhbətin əvvəli:\n${convo}\n\n` : ''}${WORLD.boss}: ${message}\n\n${agent.name} olaraq cavab ver:`;
   return runClaude({ model: CHAT_MODEL, system: chatSystem(agent, company, memoryBlock(recent, recalled), activity), prompt, onDelta, timeoutMs: 90000 });
@@ -485,7 +497,8 @@ const snapshot = () => ({
 
 /* ---------------- sosial şəbəkə ---------------- */
 const social = createSocial({ OUT, TEAM, PERSONAS, emit, isHired, hired: () => [...staff.hired], moodNow, worldRules,
-  llm: (system, prompt) => runClaude({ model: CHAT_MODEL, system, prompt, timeoutMs: 60000 }), mode: () => claudeState.mode });
+  llm: (system, prompt) => runClaude({ model: CHAT_MODEL, system, prompt, timeoutMs: 60000 }), mode: () => claudeState.mode,
+  remember: (id, text, kind) => memory.remember(id, text, kind) });
 const isBusy = id => [...jobs.values()].some(j => j.agentId === id && j.status === 'running') || [...campaigns.values()].some(c => c.status === 'running' && PIPE[c.step]?.id === id);
 
 // İnternetdən (tunel) gələn sorğular: yalnız sosial şəbəkəyə baxmaq, şifrə ilə. Ofisin idarəsi yalnız bu kompüterdən.
@@ -609,7 +622,10 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/agent') {
       const id = url.searchParams.get('id'); if (!byId[id]) return json(res, 404, { error: 'Yoxdur' });
-      return json(res, 200, { memories: (await memory.recent(id, 12)).reverse(), count: await memory.count(id), ruflo: memory.ruflo.available });
+      const all = await memory.list(id), stages = {};
+      for (const v of all) stages[v.stage] = (stages[v.stage] || 0) + 1;
+      return json(res, 200, { memories: all.slice(-20).reverse().map(({ t, kind, stage, r, text, shown }) => ({ t, kind, stage, r, text, shown })),
+        count: all.length, stages, ruflo: memory.ruflo.available });
     }
     if (url.pathname === '/api/output') {
       const rel = url.searchParams.get('f') || '';

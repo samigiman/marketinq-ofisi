@@ -260,8 +260,15 @@ async function loadMemories(a) {
     const j = await fetch('/api/agent?id=' + a.id).then(r => r.json());
     if (selected !== a) return;
     const when = t => new Date(t).toLocaleString('az-AZ', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-    box.innerHTML = `<p class="hint" style="margin:0 0 12px">${j.count} qeyd · ${j.ruflo ? 'Ruflo yaddaşı' : 'yerli yaddaş'}</p>` +
-      (j.memories.length ? j.memories.map(m => `<div class="mem"><small>${when(m.t)} · ${esc(m.kind)}</small>${esc(m.text)}</div>`).join('')
+    // İnsan yaddaşı: iş dəqiq qalır, gündəlik şeylər solur. Rəhbər həm indi necə xatırladığını, həm aslını görür.
+    const ST = { is: 'İş · dəqiq', 'aydın': 'Aydın', 'dumanlı': 'Dumanlı', unudulub: 'Unudub' };
+    const s = j.stages || {};
+    const sum = Object.keys(ST).filter(k => s[k]).map(k => `${s[k]} ${ST[k].toLowerCase()}`).join(' · ');
+    box.innerHTML = `<p class="hint" style="margin:0 0 4px">${j.count} xatirə${sum ? ' · ' + sum : ''}</p>
+      <p class="hint" style="margin:0 0 12px">İşlə bağlı hər şey tam yadında qalır. Gündəlik hadisələr zamanla solur, yada düşəndə isə möhkəmlənir.</p>` +
+      (j.memories.length ? j.memories.map(m => `<div class="mem st-${m.stage === 'is' ? 'is' : m.stage === 'aydın' ? 'aydin' : m.stage === 'dumanlı' ? 'duman' : 'unut'}">
+        <small>${when(m.t)} <span class="stg">${ST[m.stage] || m.stage}</span>${m.stage !== 'is' ? `<span class="rb" title="Yadda qalma gücü"><i style="width:${Math.round(m.r * 100)}%"></i></span>` : ''}</small>
+        ${m.stage === 'dumanlı' ? `${esc(m.shown)}<span class="orig">Əslində: ${esc(m.text)}</span>` : esc(m.text)}</div>`).join('')
         : `<div class="empty">${esc(a.def.name)} hələ sizinlə bağlı heç nə xatırlamır. Danışın və ya tapşırıq verin.</div>`);
   } catch { box.innerHTML = '<div class="empty">Yaddaş açılmadı.</div>'; }
 }

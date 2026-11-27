@@ -178,6 +178,20 @@ Personajların xatirələri [Ruflo](https://github.com/ruvnet/ruflo)-nun yaddaş
 - Baza köhnə modellə qurulubsa, `kohne-…` adı ilə kənara qoyulur və bütün xatirələr JSONL-dən yeni modelə yenidən yazılır. `MEMORY_MODEL=minilm` köhnə modelə qaytarır.
 - Axtarış xatirənin tam mətnini qaytarır (əvvəllər ~50 simvolluq önizləmə gedirdi).
 
+**Unudaraq öyrənmə** ([forget.mjs](forget.mjs)). Yaddaş insan yaddaşı kimi işləyir:
+
+| Xatirə | Nə olur |
+|---|---|
+| İş: tapşırıq, kampaniya, Rəhbərlə işdən söhbət | Heç vaxt solmur, tam qalır |
+| Rəhbərlə şəxsi söhbət | ~6 günə solur |
+| Ulduzgram, chat və digər gündəlik şeylər | ~3 günə solur |
+| İşə götürülmə, kiminsə çıxarılması | ~45 günə solur |
+
+- Solma Ebbinghaus əyrisi ilə gedir: `R = e^(-t/S)`. Əvvəl aydın olur (tam mətn), sonra dumanlı (yalnız ümumi məzmun; rəqəm və sitatlar gedir), sonda unudulur və axtarışdan çıxır.
+- Yada düşən xatirə (axtarışda tapılan) möhkəmlənir, ona görə gec unudulur.
+- JSONL arxivdir, heç nə silinmir. Rəhbər **Yaddaş** tabında hər xatirənin vəziyyətini və aslını görür, işçi isə yalnız yadında qalanı bilir.
+- `MEMORY_DAY_MS` bir "günün" uzunluğudur (test üçün), `MEMORY_RUFLO=0` isə yalnız yerli yaddaşı saxlayır.
+
 > ℹ️ Ruflo `CLAUDE_PROJECT_DIR` kimi Claude Code mühit dəyişənlərini oxuyur. Ofis serveri Claude Code-un içindən işə salınsa belə yaddaşın başqa layihəyə qarışmaması üçün Ruflo yalnız `yaddas/` qovluğunda, bu dəyişənlər olmadan işə salınır. Bu layihə Ruflo-nu yalnız yaddaş üçün işlədir, `ruflo init` lazım deyil.
 > Ətraflı: [docs/RUFLO.md](docs/RUFLO.md)
 

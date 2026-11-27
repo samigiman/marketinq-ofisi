@@ -6,12 +6,16 @@
 // Biz multilingual-e5-small (384 ölçü, ~118 MB, 8-bit) qoşuruq: Ruflo modeli işlədiyi qovluqdakı
 // .claude-flow/embeddings.json-dan oxuyur. e5 mətndən əvvəl "passage: " / "query: " istəyir — bunu burada əlavə edirik.
 // MEMORY_MODEL=minilm köhnə modelə qaytarır.
+//
+// Unudaraq öyrənmə (forget.mjs): iş xatirələri tam qalır, gündəlik xatirələr zamanla solur və unudulur,
+// yada düşən xatirə möhkəmlənir. Möhkəmlik <id>.guc.json-da saxlanır; JSONL arxivdir, heç nə silinmir.
 
 import { spawn } from 'node:child_process';
 import { appendFile, readFile, writeFile, mkdir, rename, link, readdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { classify, initialStrength, reinforce, view } from './forget.mjs';
 
 const MODELS = {
   e5: { id: 'Xenova/multilingual-e5-small', passage: 'passage: ', query: 'query: ' },
@@ -22,12 +26,13 @@ const MODEL_FILES = ['config.json', 'tokenizer.json', 'tokenizer_config.json', '
 // Ruflo ilə eyni keş qovluğu (memory/model-cache-dir.js).
 const cacheDir = () => process.env.TRANSFORMERS_CACHE || process.env.HF_HOME || path.join(os.homedir(), '.cache', 'ruflo', 'models');
 
-export function createMemory(root, dir = path.join(root, 'yaddas')) {
+export function createMemory(root, dir = path.join(root, 'yaddas'), { now = () => Date.now() } = {}) {
   const db = path.join(dir, 'ofis.db');
   const bin = path.join(root, 'node_modules', '.bin', 'ruflo');
   const model = MODELS[process.env.MEMORY_MODEL] || MODELS.e5;
   // available: Ruflo quraşdırılıb; ready: model yüklənib və baza bu modelə uyğundur.
-  const ruflo = { available: existsSync(bin), ready: false, model: model.id, lastError: '' };
+  // MEMORY_RUFLO=0: yalnız yerli yaddaş (testlər və Ruflo-suz iş üçün).
+  const ruflo = { available: process.env.MEMORY_RUFLO !== '0' && existsSync(bin), ready: false, model: model.id, lastError: '' };
   let queue = Promise.resolve();
   let seq = 0; // eyni millisaniyədə yazılan xatirələrin açarı üst-üstə düşməsin
 
@@ -108,14 +113,72 @@ export function createMemory(root, dir = path.join(root, 'yaddas')) {
   }
 
   async function readAll(agentId) {
-    try { return (await readFile(jsonl(agentId), 'utf8')).trim().split('\n').filter(Boolean).map(l => JSON.parse(l)); } catch { return []; }
+    try {
+      return (await readFile(jsonl(agentId), 'utf8')).trim().split('\n').filter(Boolean)
+        .map(l => { const x = JSON.parse(l); x.id ||= String(x.t); x.cls ||= classify(x.kind, x.text); return x; });
+    } catch { return []; }
+  }
+
+  // Möhkəmlik vəziyyəti: id → { s: möhkəmlik (gün), seen: son yada düşmə, hits: neçə dəfə, forgotten }.
+  const guc = new Map(), gucFile = id => path.join(dir, `${id}.guc.json`), dirty = new Set();
+  async function strengths(agentId) {
+    if (!guc.has(agentId)) {
+      let m = {}; try { m = JSON.parse(await readFile(gucFile(agentId), 'utf8')); } catch {}
+      guc.set(agentId, m);
+    }
+    return guc.get(agentId);
+  }
+  let saveTimer = null;
+  function markDirty(agentId) {
+    dirty.add(agentId);
+    saveTimer ||= setTimeout(async () => {
+      saveTimer = null;
+      for (const id of [...dirty]) { dirty.delete(id); await writeFile(gucFile(id), JSON.stringify(guc.get(id))).catch(() => {}); }
+    }, 300);
+  }
+  async function saveNow() { clearTimeout(saveTimer); saveTimer = null; for (const id of [...dirty]) { dirty.delete(id); await writeFile(gucFile(id), JSON.stringify(guc.get(id))).catch(() => {}); } }
+
+  // Xatirə yada düşdü: möhkəmlik artır, unutma saatı sıfırlanır. İş xatirələri onsuz da solmur.
+  async function touch(agentId, items) {
+    const st = await strengths(agentId), t = now();
+    for (const it of items) {
+      if (it.cls === 'is') continue;
+      const cur = st[it.id] || { s: initialStrength(it.cls), hits: 0 };
+      if (cur.forgotten) continue;
+      st[it.id] = { s: Number(reinforce(cur.s, cur.hits).toFixed(2)), seen: t, hits: cur.hits + 1 };
+    }
+    markDirty(agentId);
+  }
+
+  // Bütün xatirələr indiki görünüşü ilə (Rəhbərin paneli üçün; unudulanlar da daxil).
+  async function list(agentId) {
+    const st = await strengths(agentId), t = now();
+    return (await readAll(agentId)).map(x => view(x, st[x.id], t));
+  }
+
+  // Unudulmuş xatirələri qeyd et və Ruflo-dan sil: artıq axtarışda çıxmasınlar.
+  async function sweep() {
+    let forgotten = 0;
+    const files = (await readdir(dir).catch(() => [])).filter(f => f.endsWith('.jsonl'));
+    for (const f of files) {
+      const agentId = f.slice(0, -6), st = await strengths(agentId);
+      for (const v of await list(agentId)) {
+        if (v.stage !== 'unudulub' || st[v.id]?.forgotten) continue;
+        st[v.id] = { ...(st[v.id] || { s: initialStrength(v.cls), hits: 0 }), forgotten: true };
+        forgotten++; markDirty(agentId);
+        if (ruflo.available && ruflo.ready) queue = queue.then(() => run(['memory', 'delete', '-k', `${agentId}-${v.id}`, '-n', ns(agentId), '--path', db, '-f'], 30000)).catch(() => {});
+      }
+    }
+    await saveNow();
+    return forgotten;
   }
 
   // Xatirə yaz (növbəyə düşür, gözləmək lazım deyil). Model hələ hazır deyilsə, yalnız JSONL-ə düşür;
   // yenidən qurulma zamanı Ruflo-ya da köçürülür.
   function remember(agentId, text, kind = 'qeyd') {
-    const t = Date.now();
-    const item = { t, id: `${t}-${seq++}`, kind, text: String(text).replace(/\s+/g, ' ').trim().slice(0, 600) };
+    const t = now();
+    const clean = String(text).replace(/\s+/g, ' ').trim().slice(0, 600);
+    const item = { t, id: `${t}-${seq++}`, kind, cls: classify(kind, clean), text: clean };
     const local = appendFile(jsonl(agentId), JSON.stringify(item) + '\n').catch(() => {});
     if (ruflo.available && ruflo.ready) store(agentId, item);
     return local;
@@ -123,6 +186,8 @@ export function createMemory(root, dir = path.join(root, 'yaddas')) {
 
   async function recent(agentId, n = 8) { return (await readAll(agentId)).slice(-n); }
   async function count(agentId) { return (await readAll(agentId)).length; }
+  // Promptda yada düşənlər: son xatirələrdən unudulmayanlar, dumanlıların yalnız ümumi məzmunu.
+  async function vivid(agentId, n = 8) { return (await list(agentId)).filter(v => v.stage !== 'unudulub').slice(-n); }
 
   // Mövzuya uyğun xatirələr (Ruflo semantik axtarışı), tam mətnlə. Alınmasa — boş siyahı.
   // e5-in balları sıxdır (adətən 0.75–0.9), ona görə sabit hədd yox, ən yaxşı nəticəyə nisbət işlədirik.
@@ -135,9 +200,10 @@ export function createMemory(root, dir = path.join(root, 'yaddas')) {
       const res = j.results || [];
       if (!res.length) return [];
       const top = res[0].score, floor = model.passage ? Math.max(0.78, top - 0.02) : 0.35;
-      const byId = new Map((await readAll(agentId)).map(x => [x.id || String(x.t), x.text]));
-      return res.filter(r => r.score >= floor)
-        .map(r => byId.get(String(r.key).slice(agentId.length + 1)) || String(r.preview || '').replace(model.passage, ''));
+      const byId = new Map((await list(agentId)).map(v => [v.id, v]));
+      const found = res.filter(r => r.score >= floor).map(r => byId.get(String(r.key).slice(agentId.length + 1))).filter(v => v && v.stage !== 'unudulub');
+      await touch(agentId, found);
+      return found;
     } catch (e) { ruflo.lastError = e.message; return []; }
   }
 
@@ -150,5 +216,5 @@ export function createMemory(root, dir = path.join(root, 'yaddas')) {
     return ruflo.ready;
   }
 
-  return { init, remember, recent, recall, count, flush, whenReady, ruflo, dir };
+  return { init, remember, recent, vivid, list, recall, count, sweep, touch, flush, whenReady, ruflo, dir };
 }

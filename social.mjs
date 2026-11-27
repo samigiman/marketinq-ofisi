@@ -18,7 +18,8 @@ const MOCK_POST = {
 const MOCK_CHAT = ['Kim qəhvəyə gedir?', 'Bu gün görüş neçədədir?', 'Rəhbər bu gün yaxşı əhvaldadır deyəsən', 'Mırmır mənim stulumu tutub', 'Nahara nə sifariş edək?', 'Brifi kim göndərəcək?', 'Mən bir az gecikəcəm', 'Bu həftə çox iş var', 'Ha ha, doğrudur'];
 const MOCK_SAD = ['Eşitdiniz? Çox qəribə oldu', 'Növbəti kim olacaq görəsən', 'Bunu gözləmirdim', 'Əhvalım yoxdur bu gün'];
 
-export function createSocial({ OUT, TEAM, PERSONAS, emit, isHired, hired, moodNow, worldRules, llm, mode }) {
+// remember: sosial həyat gündəlik xatirə kimi yaddaşa düşür (zamanla solur, forget.mjs).
+export function createSocial({ OUT, TEAM, PERSONAS, emit, isHired, hired, moodNow, worldRules, llm, mode, remember = () => {} }) {
   const FILE = path.join(OUT, 'sosial.json');
   const MAX_PER_HOUR = +process.env.SOCIAL_MAX_PER_HOUR || 40;
   const TICK = (+process.env.SOCIAL_TICK || 25) * 1000;
@@ -59,6 +60,7 @@ export function createSocial({ OUT, TEAM, PERSONAS, emit, isHired, hired, moodNo
     const p = { id: uid(), at: Date.now(), author: agentId, text, photo, likes: [], comments: [] };
     db.posts.unshift(p); if (db.posts.length > 300) db.posts.pop();
     stat(agentId, 'posts', 5); save();
+    remember(agentId, `Ulduzgram-da paylaşdım: ${text}`, 'sosial');
     emit({ type: 'social', kind: 'post', agentId, post: p });
     return p;
   }
@@ -68,6 +70,8 @@ export function createSocial({ OUT, TEAM, PERSONAS, emit, isHired, hired, moodNo
     const text = await write(agentId, `${name(p.author)} Ulduzgram-da yazıb: "${p.text}". Ona qısa şərh yaz (bir cümlə).`, pick(['Çox gözəl', 'Ha ha', 'Mən də istəyirəm', 'Haqlısan', 'Bəs mənə niyə demədin?']));
     p.comments.push({ author: agentId, text, at: Date.now() });
     stat(agentId, 'comments', 2); save();
+    remember(agentId, `${name(p.author)}-in postuna yazdım: ${text}`, 'sosial');
+    remember(p.author, `${name(agentId)} postuma şərh yazdı: ${text}`, 'sosial');
     emit({ type: 'social', kind: 'comment', agentId, postId: p.id, text });
   }
   function like(agentId) {
@@ -93,6 +97,8 @@ export function createSocial({ OUT, TEAM, PERSONAS, emit, isHired, hired, moodNo
     const m = { at: Date.now(), author: agentId, text };
     th.messages.push(m); if (th.messages.length > 200) th.messages.shift();
     stat(agentId, 'messages', 1); save();
+    remember(agentId, `Ulduz Chat-da (${where}) yazdım: ${text}`, 'sosial');
+    if (th.members.length === 2) remember(th.members.find(x => x !== agentId), `${name(agentId)} mənə yazdı: ${text}`, 'sosial');
     emit({ type: 'social', kind: 'message', agentId, thread: th.id, text });
   }
 
