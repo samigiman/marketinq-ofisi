@@ -481,7 +481,7 @@ async function runTeam(text) {
       t.status = 'running';
       const names = t.parts.map(p => byId[p.agentId].name).join(', ');
       emit({ type: 'team', phase: 'plan', teamId: t.id, text, lead, parts: t.parts });
-      const ctx = p => `Bu, komanda tapşırığının sənə düşən hissəsidir. Ümumi tapşırıq: "${text}". ${byId[lead].name} işi böldü; komandada: ${t.parts.map(x => `${byId[x.agentId].name} (${x.task})`).join('; ')}. Yalnız öz hissəni gör, qısa və konkret yaz: başqası birləşdirəcək.`;
+      const ctx = p => `Bu, komanda tapşırığının sənə düşən hissəsidir. Ümumi tapşırıq: "${text}". ${byId[lead].name} işi böldü; komandada: ${t.parts.map(x => `${byId[x.agentId].name} (${x.task})`).join('; ')}. Hamınız eyni vaxtda işləyirsiniz: həmkarlarının nəticəsini görməyəcəksən, onların qovluğunu axtarma. Yalnız öz hissəni gör, qısa və konkret yaz: başqası birləşdirəcək.`;
       const jobsRun = await Promise.all(t.parts.map(p => runTask(p.agentId, p.task, { team: t.id, extra: ctx(p) })
         .then(j => { p.jobId = j.id; return j.promise; })
         .then(j => { p.status = j.status; p.file = j.file; return j; }))); // hər hissə bitən kimi görünsün
