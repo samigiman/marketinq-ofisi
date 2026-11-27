@@ -1,0 +1,134 @@
+// Server API testləri: demo rejimdə (MOCK=1), Claude çağırılmadan.
+//   npm test
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { PIPE } from '../public/team.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+function startServer(outDir, delay = 0) {
+  return new Promise((resolve, reject) => {
+    const p = spawn(process.execPath, ['server.mjs'], {
+      cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, MOCK: '1', PORT: '0', OUT_DIR: outDir, MOCK_DELAY: String(delay) },
+    });
+    let out = '';
+    const t = setTimeout(() => { p.kill(); reject(new Error('server başlamadı: ' + out)); }, 15000);
+    p.stdout.on('data', d => {
+      out += d; const m = out.match(/localhost:(\d+)/);
+      if (m) { clearTimeout(t); resolve({ p, base: `http://127.0.0.1:${m[1]}`, stop: () => new Promise(r => { p.once('close', r); p.kill('SIGKILL'); }) }); }
+    });
+    p.stderr.on('data', d => (out += d));
+    p.on('error', reject);
+  });
+}
+
+const post = (base, url, data, raw) => fetch(base + url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: raw ?? JSON.stringify(data) });
+
+// SSE axınını oxuyur; pred(ev) true qaytaranda həmin hadisə ilə bitir.
+async function waitEvent(base, pred, timeoutMs = 30000) {
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), timeoutMs);
+  try {
+    const r = await fetch(base + '/api/events', { signal: ac.signal });
+    const dec = new TextDecoder(); let buf = '';
+    for await (const chunk of r.body) {
+      buf += dec.decode(chunk, { stream: true }); let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const block = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!block.startsWith('data: ')) continue;
+        const ev = JSON.parse(block.slice(6));
+        if (pred(ev)) return ev;
+      }
+    }
+    throw new Error('SSE bağlandı');
+  } finally { clearTimeout(t); ac.abort(); }
+}
+
+const tmp = () => mkdtemp(path.join(tmpdir(), 'ofis-test-'));
+
+test('health demo rejimi göstərir, yanlış sorğular rədd olunur', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    const h = await fetch(s.base + '/api/health').then(r => r.json());
+    assert.equal(h.mode, 'mock');
+    assert.equal((await post(s.base, '/api/task', null, '{yox')).status, 400);
+    assert.equal((await post(s.base, '/api/task', { agentId: 'cmo', text: '' })).status, 400);
+    assert.equal((await post(s.base, '/api/campaign/resume', { campaignId: 'yoxdur' })).status, 404);
+    assert.equal((await fetch(s.base + '/api/output?f=../server.mjs')).status, 404);
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('tapşırıq SSE ilə bitir və nəticə faylı yazılır', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    const done = waitEvent(s.base, ev => ev.type === 'job' && ev.phase === 'done');
+    const r = await post(s.base, '/api/task', { agentId: 'cmo', text: 'Yeni il üçün slogan' });
+    assert.equal(r.status, 200);
+    const ev = await done;
+    const md = await fetch(s.base + '/api/output?f=' + encodeURIComponent(ev.file)).then(r => r.text());
+    assert.match(md, /Yeni il üçün slogan/);
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('kampaniya sona qədər gedir, vəziyyət diskdə saxlanılır', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    const done = waitEvent(s.base, ev => ev.type === 'campaign' && ev.phase === 'done');
+    const { campaignId } = await post(s.base, '/api/campaign', { name: 'Test kampaniyası' }).then(r => r.json());
+    await done;
+    const [c] = await fetch(s.base + '/api/campaigns').then(r => r.json());
+    assert.equal(c.id, campaignId);
+    assert.equal(c.status, 'done');
+    assert.equal(c.steps.length, PIPE.length);
+    const [sub] = await readdir(path.join(dir, 'kampaniyalar'));
+    const files = await readdir(path.join(dir, 'kampaniyalar', sub));
+    assert.ok(files.includes('00-tam-kampaniya.md') && files.includes('state.json'));
+    assert.equal(files.filter(f => /^\d\d-/.test(f)).length, PIPE.length + 1); // 13 addım + 00-tam
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('server dayansa kampaniya yarımçıq qalır və qaldığı addımdan davam edir', async () => {
+  const dir = await tmp();
+  let s = await startServer(dir, 15);
+  let campaignId;
+  try {
+    const twoDone = waitEvent(s.base, ev => ev.type === 'campaign' && ev.phase === 'step-done' && ev.step === 1);
+    ({ campaignId } = await post(s.base, '/api/campaign', { name: 'Novruz 2027' }).then(r => r.json()));
+    assert.equal((await post(s.base, '/api/campaign', { name: 'İkinci' })).status, 409, 'eyni anda ikinci kampaniya olmaz');
+    await twoDone;
+    // yenidən qoşulan brauzer gedən kampaniyanı görür
+    const hello = await waitEvent(s.base, ev => ev.type === 'hello');
+    assert.equal(hello.campaign?.id, campaignId);
+    assert.ok(hello.campaign.steps.length >= 2);
+  } finally { await s.stop(); }
+
+  s = await startServer(dir, 0);
+  try {
+    const [c] = await fetch(s.base + '/api/campaigns').then(r => r.json());
+    assert.equal(c.id, campaignId);
+    assert.equal(c.status, 'interrupted');
+    const from = c.steps.length;
+    assert.ok(from >= 2 && from < PIPE.length);
+
+    const start = waitEvent(s.base, ev => ev.type === 'campaign' && ev.phase === 'start');
+    const done = waitEvent(s.base, ev => ev.type === 'campaign' && ev.phase === 'done');
+    const r = await post(s.base, '/api/campaign/resume', { campaignId }).then(r => r.json());
+    assert.equal(r.from, from);
+    const st = await start;
+    assert.equal(st.from, from);
+    assert.equal(st.done.length, from);
+    await done;
+    const [after] = await fetch(s.base + '/api/campaigns').then(r => r.json());
+    assert.equal(after.status, 'done');
+    assert.equal(after.steps.length, PIPE.length);
+    const state = JSON.parse(await readFile(path.join(dir, 'kampaniyalar', (await readdir(path.join(dir, 'kampaniyalar')))[0], 'state.json'), 'utf8'));
+    assert.equal(state.status, 'done');
+    assert.equal((await post(s.base, '/api/campaign/resume', { campaignId })).status, 409, 'bitmiş kampaniya davam etdirilmir');
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});

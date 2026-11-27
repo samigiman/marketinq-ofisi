@@ -30,6 +30,8 @@ Layihə iki hissədən ibarətdir: brauzerdə işləyən 3D ofis və onu dil mod
 | `/api/chat` | POST | `{agentId, message, history, activity}` → mətn axını (chunked) |
 | `/api/task` | POST | `{agentId, text}` → `{jobId}`; nəticə SSE ilə gəlir |
 | `/api/campaign` | POST | `{name}` → `{campaignId}`; 13 addım ardıcıl |
+| `/api/campaign/resume` | POST | `{campaignId}` → `{campaignId, from}`; yarımçıq və ya xəta ilə dayanmış kampaniyanı qaldığı addımdan davam etdirir |
+| `/api/campaigns` | GET | son 50 kampaniya: status (`running`, `done`, `error`, `interrupted`), addımlar, fayllar |
 | `/api/agent?id=` | GET | personajın son xatirələri və sayı |
 | `/api/outputs` | GET | hazır işlərin siyahısı |
 | `/api/output?f=` | GET | bir nəticə faylı (yalnız `outputs/*.md`) |
@@ -59,4 +61,15 @@ claude -p "<prompt>" --output-format stream-json --verbose --include-partial-mes
 
 - `outputs/tapsiriqlar/<tarix>_<agent>_<mövzu>.md`
 - `outputs/kampaniyalar/<tarix>_<ad>/NN-<agent>.md` və `00-tam-kampaniya.md`
+- `outputs/kampaniyalar/<tarix>_<ad>/state.json`: kampaniyanın vəziyyəti, hər addımdan sonra yazılır
+
+## Etibarlılıq
+
+- Kampaniyanın vəziyyəti diskdə saxlanılır. Server dayansa, açılışda yarımçıq kampaniya `interrupted` olur; ofisin lentində **↻ davam et** linki çıxır və iş qaldığı addımdan davam edir.
+- Addım alınmasa bir dəfə də yoxlanılır (`step-retry` hadisəsi), sonra kampaniya `error` ilə dayanır və yenə davam etdirilə bilər.
+- SSE-nin `hello` hadisəsi gedən kampaniyanı və tapşırıqları da göndərir: səhifəni yeniləyəndə animasiya gedən kampaniyaya qoşulur.
+
+## Testlər
+
+`npm test` serveri demo rejimdə (`MOCK=1`, `MOCK_DELAY=0`, müvəqqəti `OUT_DIR`) işə salır və API-ni yoxlayır: tapşırıq, tam kampaniya, server dayananda davam etdirmə. Claude çağırılmır.
 - `yaddas/<agent>.jsonl`, `yaddas/ofis.db` (Ruflo)

@@ -6,7 +6,8 @@
   "description": "3D marketinq ofisi: personajlar yaddaşı olan canlı Claude agentləridir (Three.js + Claude Code CLI + Ruflo)",
   "scripts": {
     "start": "node server.mjs",
-    "demo": "MOCK=1 node server.mjs"
+    "demo": "MOCK=1 node server.mjs",
+    "test": "node --test test/*.test.mjs"
   },
   "engines": {
     "node": ">=20"

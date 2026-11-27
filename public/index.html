@@ -1513,11 +1513,26 @@ async function startCampaignLive(name) {
   if (campaign) { toast('🚀 Bir kampaniya artıq gedir'); return; }
   let cid;
   try { ({ campaignId: cid } = await live.campaign(name)); } catch (e) { toast('⚠️ ' + e.message); return; }
-  campaign = { name, step: 0 }; renderPipe();
   log(null, `🚀 <b>«${esc(name)}»</b> kampaniyası başladı — ${live.mode === 'live' ? 'real agentlər işləyir' : 'demo'}`);
+  return followCampaign(cid, name, 0);
+}
+// Yarımçıq kampaniyanı qaldığı addımdan davam etdirir.
+async function resumeCampaignLive(cid, name) {
+  if (campaign) { toast('🚀 Bir kampaniya artıq gedir'); return; }
+  let from;
+  try { ({ from } = await live.resume(cid)); } catch (e) { toast('⚠️ ' + e.message); return; }
+  log(null, `↻ <b>«${esc(name)}»</b> ${from + 1}-ci addımdan davam edir`);
+  return followCampaign(cid, name, from);
+}
+const resumeLink = (id, name) => `<span class="flink" data-resume="${esc(id)}" data-name="${esc(name)}">↻ davam et</span>`;
+document.addEventListener('click', e => { const l = e.target.closest('[data-resume]'); if (l) { e.preventDefault(); resumeCampaignLive(l.dataset.resume, l.dataset.name); } });
+// Serverdəki kampaniyanı izləyir: from-dan əvvəlki addımlar artıq hazırdır.
+async function followCampaign(cid, name, from) {
+  if (campaign) return;
+  campaign = { name, step: from }; renderPipe();
   const C = () => (live.camp && live.camp.id === cid ? live.camp : null);
   const stepOf = i => C()?.steps[i];
-  for (let i = 0; i < PIPE.length; i++) {
+  for (let i = from; i < PIPE.length; i++) {
     if (C()?.error) break;
     campaign.step = i; renderPipe();
     const st = PIPE[i], a = byId(st.id);
@@ -1552,7 +1567,7 @@ async function startCampaignLive(name) {
     while (!stepOf(i)?.done && !C()?.error) await gsleep(0.4);
   }
   if (C()?.error) {
-    log(null, `⚠️ <b>«${esc(name)}»</b> dayandı: ${esc(C().error)}`); toast('⚠️ Kampaniya dayandı');
+    log(null, `⚠️ <b>«${esc(name)}»</b> dayandı: ${esc(C().error)} ${resumeLink(cid, name)}`); toast('⚠️ Kampaniya dayandı');
     await gsleep(4); campaign = null; renderPipe(); return;
   }
   while (!C()?.done) await gsleep(0.4);
@@ -1728,9 +1743,19 @@ for (const a of AGENTS) {
   }, 'free');
 }
 log(null, `🛗 ${WORLD.lift}in qapısı açıldı — komanda masalarına keçdi. Bayırdakı həyat qapının o tayında qaldı.`);
-live.init().then(() => {
+// səhifə yenilənəndə server hələ kampaniya aparırsa, animasiyaya qoşul
+live.sub('campaign', ({ phase, campaignId, name, from }) => {
+  if (phase !== 'rejoin' || campaign) return;
+  log(null, `🔄 <b>«${esc(name)}»</b> kampaniyası gedir — ${from + 1}-ci addımdan izləyirik`);
+  followCampaign(campaignId, name, from);
+});
+live.init().then(async () => {
   if (live.mode === 'live') log(null, '🟢 Canlı rejim: tapşırıqlar real Claude agentlərinə gedir');
   else if (live.mode === 'mock') log(null, '🟡 Demo rejim: server işləyir, amma Claude-a giriş yoxdur');
+  if (!live.on) return;
+  const last = (await live.campaigns().catch(() => []))[0];
+  if (last && ['interrupted', 'error'].includes(last.status))
+    log(null, `⏸ <b>«${esc(last.name)}»</b> ${last.steps.length}/${last.total} addımda yarımçıq qalıb. ${resumeLink(last.id, last.name)}`);
 });
 
 const clock = new THREE.Clock();

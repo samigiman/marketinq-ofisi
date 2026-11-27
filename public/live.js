@@ -37,6 +37,15 @@ live.task = async (agentId, text) => {
   return jobId;
 };
 live.campaign = async (name) => post('/api/campaign', { name });
+live.resume = async (campaignId) => post('/api/campaign/resume', { campaignId });
+live.campaigns = async () => fetch('/api/campaigns', { cache: 'no-store' }).then(r => (r.ok ? r.json() : []));
+
+// Kampaniya vəziyyətini (snapshot və ya davam) brauzerdə qurur: bitmiş addımlar "done" sayılır.
+const campFrom = (id, name, done = []) => {
+  const c = { id, name, step: done.length, steps: [], done: false };
+  for (const d of done) c.steps[d.step] = { chars: 0, tail: '', done: true, file: d.file };
+  return c;
+};
 
 live.init = async () => {
   paintBadge();
@@ -48,7 +57,20 @@ live.init = async () => {
   const es = new EventSource('/api/events');
   es.onmessage = m => {
     const ev = JSON.parse(m.data);
-    if (ev.type === 'hello') { live.mode = ev.mode; live.detail = ev.detail; paintBadge(); return; }
+    if (ev.type === 'hello') {
+      live.mode = ev.mode; live.detail = ev.detail; paintBadge();
+      // səhifə yeniləndi və ya server yenidən qoşuldu: gedən işləri bərpa et
+      for (const j of ev.jobs || []) if (!live.jobs.has(j.jobId)) live.jobs.set(j.jobId, { agentId: j.agentId, text: j.text, chars: 0, tail: '', done: false });
+      const sc = ev.campaign;
+      // server yenidən başlayıb və izlədiyimiz kampaniya artıq getmir: animasiya sonsuz gözləməsin
+      if (live.camp && !live.camp.done && live.camp.id !== sc?.id) {
+        live.camp.done = true; live.camp.error = 'Server yenidən başladı — kampaniya yarımçıq qaldı';
+        fire('campaign', { phase: 'error', campaignId: live.camp.id, error: live.camp.error, camp: live.camp });
+      }
+      if (sc && (!live.camp || live.camp.id !== sc.id)) { live.camp = campFrom(sc.id, sc.name, sc.steps); fire('campaign', { phase: 'rejoin', campaignId: sc.id, name: sc.name, from: sc.steps.length, camp: live.camp }); }
+      fire('hello', ev);
+      return;
+    }
     if (ev.type === 'job') {
       let j = live.jobs.get(ev.jobId);
       if (!j) live.jobs.set(ev.jobId, (j = { agentId: ev.agentId, text: ev.text, chars: 0, tail: '', done: false }));
@@ -58,7 +80,7 @@ live.init = async () => {
       fire('job', { ...ev, job: j });
     }
     if (ev.type === 'campaign') {
-      if (ev.phase === 'start') live.camp = { id: ev.campaignId, name: ev.name, step: 0, steps: [], done: false };
+      if (ev.phase === 'start') live.camp = campFrom(ev.campaignId, ev.name, ev.done);
       const c = live.camp; if (!c || c.id !== ev.campaignId) return;
       if (ev.step != null) { c.step = ev.step; c.steps[ev.step] ||= { chars: 0, tail: '', done: false }; }
       const s = ev.step != null ? c.steps[ev.step] : null;
