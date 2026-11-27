@@ -99,6 +99,7 @@ async function fire(a) {
 const right = $('right');
 export let selected = null;
 let follow = false, curTab = 'chat';
+const teamsView = new Map(); // komanda işləri (renderOffice ilk yüklənmədə də istifadə edir)
 const selRing = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.68, 40), new THREE.MeshBasicMaterial({ color: '#1f5f4a', transparent: true, opacity: 0.9, depthWrite: false, toneMapped: false }));
 selRing.rotation.x = -PI / 2; selRing.visible = false; scene.add(selRing);
 export const followState = () => follow;
@@ -497,8 +498,7 @@ async function loadShared() {
     : '<div class="empty">Hələ ortaq heç nə yoxdur. İşə qiymət verib irad yazanda burada görünəcək.</div>';
 }
 
-// Komanda işləri: plan, hissələr, birləşdirmə. Server hadisələrindən yenilənir.
-const teamsView = new Map();
+// Komanda işləri: plan, hissələr, birləşdirmə. Server hadisələrindən yenilənir (teamsView faylın əvvəlində).
 async function renderTeams() {
   const el = $('teamSec'); if (!el) return;
   if (live.on && !teamsView.size) for (const t of await fetch('/api/teams').then(r => r.json()).catch(() => [])) teamsView.set(t.id, t);
@@ -511,6 +511,8 @@ async function renderTeams() {
       ${t.file ? `<p style="margin:8px 0 0"><button class="btn sm primary" type="button" data-file="${esc(t.file)}" data-title="${esc(t.text)}">Yekun nəticə</button></p>` : t.error ? `<p class="small muted">${esc(t.error)}</p>` : ''}
     </div>`).join('');
 }
+// Serverə qoşulanda (və yenidən qoşulanda) ofis panelinin server bölmələri təzələnir.
+live.sub('hello', () => { if (!selected && $('teamSec')) { loadBook(); loadShared(); renderTeams(); } });
 live.sub('team', ev => {
   const t = teamsView.get(ev.teamId) || { id: ev.teamId, text: ev.text, lead: ev.lead, status: 'planning', parts: [], at: Date.now() };
   if (ev.parts) t.parts = ev.parts;
