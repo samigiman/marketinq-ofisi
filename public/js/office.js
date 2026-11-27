@@ -6,6 +6,12 @@ import { THREE, office, M, box, cyl, sph, canvasTex, basicPlane, FONT } from './
 import { block, unblock, addCost } from './nav.js';
 import { PI, pick, seeded, hash } from './util.js';
 import { DEPTS, TEAM, WORLD } from '../team.js';
+import { K, kenneyReady, footprint } from './kenney.js';
+await kenneyReady; // mebel modelləri (Kenney Furniture Kit) hazır olmalıdır
+// Kenney modellərinin "üzü" bizim oxlarla uyğun gəlsin deyə düzəliş (radian)
+const FIX = { chairDesk: PI, loungeSofa: PI, loungeChair: PI, desk: PI, bookcaseOpen: PI, kitchenCabinet: PI, kitchenFridge: PI, kitchenCoffeeMachine: PI, stoolBar: 0, tableCoffee: 0 };
+// model qoy + keçilməz sahə
+function KB(name, x, z, rot = 0, o = {}) { const m = K(P, name, x, z, rot + (FIX[name] || 0), o); if (o.block !== false) B(...footprint(name, x, z, rot, o.s || 1), o.pad ?? 0.08); return m; }
 
 export const ROOM = { x0: -20, x1: 20, z0: -14, z1: 14 };
 
@@ -98,20 +104,11 @@ function monitor(p, x, y, z, rotY, w, screen) {
   const s = basicPlane(w - 0.04, 0.48, screen.tex); s.position.set(0, 0.56, -0.014); s.rotation.y = PI; g.add(s);
   return s;
 }
-function chair(x, z, rot, color = C.fabric) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; P.add(g);
-  box(g, 0.5, 0.07, 0.48, color, 0, 0.47, 0, 0.03);
-  box(g, 0.46, 0.5, 0.05, color, 0, 0.82, -0.25, 0.03);
-  cyl(g, 0.025, 0.025, 0.4, C.iron, 0, 0.24, 0, 8);
-  for (let i = 0; i < 5; i++) { const a = i / 5 * PI * 2; const leg = box(g, 0.035, 0.025, 0.28, C.iron, Math.sin(a) * 0.13, 0.04, Math.cos(a) * 0.13, 0); leg.rotation.y = a; }
-  return g;
-}
+function chair(x, z, rot) { return K(P, 'chairDesk', x, z, rot + FIX.chairDesk); }
 export function plant(x, z, s = 1, tall = false) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s); P.add(g);
-  cyl(g, 0.28, 0.22, 0.5, C.terracotta, 0, 0.25, 0, 16);
-  if (tall) { cyl(g, 0.03, 0.03, 1.4, C.oakDark, 0, 1.1, 0, 6); for (let i = 0; i < 8; i++) sph(g, 0.22, i % 2 ? leafM : leaf2M, Math.sin(i * 1.7) * 0.26, 1.3 + i * 0.13, Math.cos(i * 1.7) * 0.26, 8).scale.set(1, 0.6, 1); }
-  else for (let i = 0; i < 6; i++) sph(g, 0.24, i % 2 ? leafM : leaf2M, Math.sin(i) * 0.18, 0.72 + (i % 3) * 0.12, Math.cos(i) * 0.18, 8).scale.set(1, 0.75, 1);
+  const m = K(P, tall ? 'pottedPlant' : pick(['plantSmall1', 'plantSmall2', 'plantSmall3']), x, z, (x * 7 + z * 3) % 6, { s: tall ? 1.5 * s : 2.2 * s });
   B(x - 0.3 * s, z - 0.3 * s, x + 0.3 * s, z + 0.3 * s, 0.1);
+  return m;
 }
 function rug(x, z, w, d, color) {
   const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.015, d), M(color, { r: 1 }));
@@ -249,26 +246,16 @@ function poster(x, y, z, rotY, w, h, bg, title, sub, accent) {
   const m = basicPlane(w, h, tex); m.position.set(x + (rotY ? 0.02 : 0), y, z + (rotY ? 0 : 0.02)); m.rotation.y = rotY; P.add(m);
 }
 const lampMat = new THREE.MeshBasicMaterial({ color: '#fff2da', toneMapped: false });
-function sofa(x, z, rot, w = 4.0, col = C.blue) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; P.add(g);
-  box(g, w, 0.4, 1.0, col, 0, 0.2, 0, 0.06); box(g, w, 0.78, 0.26, col, 0, 0.42, 0.42, 0.06);
-  for (const sx of [-w / 2, w / 2]) box(g, 0.26, 0.58, 1.08, col, sx, 0.29, 0.04, 0.06);
-  for (let i = 0; i < Math.round(w / 1.4); i++) box(g, 1.25, 0.12, 0.82, new THREE.Color(col).lerp(new THREE.Color('#ffffff'), 0.12).getStyle(), -w / 2 + 0.75 + i * 1.3, 0.46, -0.08, 0.04);
-  box(g, 0.38, 0.38, 0.12, C.terracotta, -w / 2 + 0.6, 0.72, 0.22, 0.04).rotation.z = 0.2;
-  return g;
+function sofa(x, z, rot, w = 4.0) {
+  const n = Math.max(1, Math.round(w / 1.9)), ux = Math.cos(rot), uz = -Math.sin(rot);
+  for (let i = 0; i < n; i++) { const o = (i - (n - 1) / 2) * 1.9; K(P, 'loungeSofa', x + ux * o, z + uz * o, rot + FIX.loungeSofa); }
+  K(P, 'pillowBlue', x - ux * (w / 2 - 0.5), z - uz * (w / 2 - 0.5), rot, { y: 0.45 });
 }
-function armchair(x, z, rot, col = C.terracotta) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot; P.add(g);
-  box(g, 0.95, 0.4, 0.85, col, 0, 0.2, 0, 0.06); box(g, 0.95, 0.62, 0.2, col, 0, 0.5, -0.36, 0.05);
-  B(x - 0.5, z - 0.5, x + 0.5, z + 0.5, 0.05);
-}
+function armchair(x, z, rot) { KB('loungeChair', x, z, rot); }
 function shelf(x, z, rotY, w, seed, h = 2.0) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rotY; P.add(g);
-  box(g, w, h, 0.38, C.oak, 0, h / 2, 0, 0.01);
-  const R = seeded(seed), sp = ['#7a3e33', '#36546b', '#c9b48a', '#2f3640', '#8a7a62', '#e1dbcf'];
-  const rows = Math.floor(h / 0.56);
-  for (let r = 0; r < rows; r++) for (let i = 0; i < Math.floor(w / 0.26); i++) { if (R() < 0.22) continue; box(g, 0.1 + R() * 0.06, 0.28 + R() * 0.12, 0.26, sp[(i + r) % 6], -w / 2 + 0.2 + i * 0.26, 0.32 + r * 0.56, -0.02, 0.003); }
-  if (R() < 0.6) { cyl(g, 0.08, 0.07, 0.14, C.terracotta, w / 2 - 0.25, h + 0.07, 0, 10); sph(g, 0.13, leafM, w / 2 - 0.25, h + 0.2, 0, 8); }
+  const n = Math.max(1, Math.round(w / 0.78)), ux = Math.cos(rotY), uz = -Math.sin(rotY);
+  for (let i = 0; i < n; i++) { const o = (i - (n - 1) / 2) * 0.78; K(P, h < 1.5 ? 'bookcaseOpenLow' : 'bookcaseOpen', x + ux * o, z + uz * o, rotY + FIX.bookcaseOpen); }
+  if (seeded(seed)() < 0.7) K(P, 'plantSmall2', x + ux * (w / 2 - 0.3), z + uz * (w / 2 - 0.3), 0, { y: h < 1.5 ? 0.95 : 1.72, s: 1.6 });
 }
 
 /* ---------------- uzun ortaq masalar ---------------- */
@@ -276,19 +263,17 @@ export const SEATS = {};
 const defOf = id => TEAM.find(t => t.id === id);
 const TABLES = [], SLOTS = [];
 function table(cx, z, n, stage) {
-  const L = n * 2.0 + 0.5;
+  const L = n * 1.5 + 0.1;
   const tg = new THREE.Group(); tg.visible = false; P.add(tg);
-  floorPatch(cx, z, L + 2.6, 4.6, parquetTex, 1.6, tg);
-  box(tg, L, 0.05, 1.9, C.oak, cx, 0.75, z, 0.01);
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) box(tg, 0.06, 0.73, 0.06, C.iron, cx + sx * (L / 2 - 0.15), 0.365, z + sz * 0.8, 0);
-  box(tg, L - 0.3, 0.04, 0.04, C.iron, cx, 0.12, z, 0);
+  floorPatch(cx, z, L + 2.6, 4.8, parquetTex, 1.6, tg);
   box(tg, L - 0.6, 0.06, 0.14, C.iron, cx, 3.3, z, 0.01, false);
   const strip = new THREE.Mesh(new THREE.PlaneGeometry(L - 0.7, 0.08), lampMat); strip.rotation.x = PI / 2; strip.position.set(cx, 3.265, z); tg.add(strip);
   for (const sx of [-1, 1]) cyl(tg, 0.005, 0.005, 0.9, C.iron, cx + sx * (L / 2 - 0.6), 3.75, z, 4, false);
-  const T = { tg, stage, rect: [cx - L / 2, z - 0.95, cx + L / 2, z + 0.95], slots: [] };
+  const T = { tg, stage, rect: [cx - L / 2, z - 1.08, cx + L / 2, z + 1.08], slots: [] };
   BLOCKS.push({ r: [...T.rect, 0.12], stage, vis: () => T.tg.visible });
   for (let i = 0; i < n * 2; i++) {
-    const side = i % 2 ? -1 : 1, k = i >> 1, x = cx + (k - (n - 1) / 2) * 2.0;
+    const side = i % 2 ? -1 : 1, k = i >> 1, x = cx + (k - (n - 1) / 2) * 1.5;
+    K(tg, 'desk', x, z - side * 0.54, (side > 0 ? 0 : PI) + FIX.desk); // hər yerin öz masası (Kenney)
     const spare = new THREE.Group(); spare.position.set(x, 0, z - side * 0.48); spare.rotation.y = side > 0 ? 0 : PI; tg.add(spare);
     const RS = seeded(TABLES.length * 17 + i + 3), kind = RS() * 4 | 0;
     const sp = (geo, col, px, py, pz, ry = 0) => { const m = new THREE.Mesh(geo, M(col)); m.position.set(px, py, pz); m.rotation.y = ry; m.castShadow = true; spare.add(m); return m; };
@@ -327,13 +312,14 @@ poster(-19.97, 2.0, 5.2, PI / 2, 0.8, 1.12, '#36546b', 'Çatdırılma', 'restora
   const cm = basicPlane(0.5, 0.66, cal); cm.position.set(-19.96, 1.9, 6.4); cm.rotation.y = PI / 2; P.add(cm);
 }
 // mətbəx küncü: qərb divarı boyu
-box(P, 0.6, 0.92, 3.6, C.sage, -19.6, 0.46, 9.0, 0.01); box(P, 0.64, 0.04, 3.64, '#2e2f2c', -19.6, 0.94, 9.0, 0.005);
-box(P, 0.4, 0.5, 0.36, '#262725', -19.62, 1.21, 7.8, 0.03);
-for (let i = 0; i < 4; i++) cyl(P, 0.04, 0.035, 0.09, ['#f1ede6', '#b4643f', '#36546b', '#e2b23a'][i], -19.55, 1.0, 9.0 + i * 0.22, 10);
-cyl(P, 0.2, 0.16, 0.08, '#e9e4da', -19.55, 1.0, 10.3, 16); for (let i = 0; i < 5; i++) sph(P, 0.05, '#d9a95b', -19.6 + (i % 2) * 0.08, 1.05, 10.2 + i * 0.05, 8).scale.set(1.2, 0.5, 0.8);
-B(-20, 7.1, -19.25, 10.9, 0.05);
-cyl(P, 0.5, 0.5, 0.04, C.oak, -16.6, 0.76, 9.0, 24); cyl(P, 0.04, 0.04, 0.75, C.iron, -16.6, 0.38, 9.0, 8); B(-17.1, 8.5, -16.1, 9.5, 0.05);
-for (const [sx, sz] of [[-17.5, 9.0], [-15.7, 9.0]]) { cyl(P, 0.18, 0.18, 0.04, C.walnut, sx, 0.6, sz, 14); cyl(P, 0.025, 0.025, 0.58, C.iron, sx, 0.3, sz, 6); }
+for (let i = 0; i < 4; i++) KB(i === 3 ? 'kitchenSink' : 'kitchenCabinet', -19.55, 7.55 + i * 0.84, -PI / 2, { block: false });
+K(P, 'kitchenCoffeeMachine', -19.55, 7.6, -PI / 2 + FIX.kitchenCoffeeMachine, { y: 0.88 });
+K(P, 'kitchenMicrowave', -19.55, 9.3, -PI / 2, { y: 0.88 });
+KB('kitchenFridge', -19.55, 11.1, -PI / 2, { block: false });
+K(P, 'kitchenCabinetUpper', -19.75, 8.4, -PI / 2, { y: 1.75 }); K(P, 'kitchenCabinetUpper', -19.75, 9.25, -PI / 2, { y: 1.75 });
+B(-20, 7.1, -19.05, 11.6, 0.05);
+KB('tableRound', -16.6, 9.0, 0, { pad: 0.05 });
+K(P, 'stoolBar', -17.6, 9.0, PI / 2); K(P, 'stoolBar', -15.6, 9.0, -PI / 2);
 poi({ id: 'coffee', x: -18.9, z: 7.8, rot: -PI / 2, text: 'Qəhvə hazırlayır', anim: 'drink', status: 'break' });
 poi({ id: 'tea', x: -18.9, z: 9.5, rot: -PI / 2, text: 'Çay dəmləyir', anim: 'drink', status: 'break' });
 poi({ id: 'kt1', x: -17.5, z: 9.0, rot: PI / 2, drop: -0.1, text: 'Çay üstündə söhbət', anim: 'talk', status: 'break' });
@@ -376,14 +362,13 @@ table(-14.5, 3.2, 3, 1);
 floorPatch(-7.5, 11.6, 6.4, 4.4, parquetTex, 1.6);
 rug(-7.8, 11.4, 4.6, 3.2, '#c9bfae');
 sofa(-8.2, 13.1, 0, 3.6); B(-10.1, 12.6, -6.3, 13.7, 0.05);
-box(P, 1.5, 0.06, 0.8, C.walnut, -8.2, 0.42, 11.5, 0.01); for (const sx of [-0.6, 0.6]) cyl(P, 0.03, 0.03, 0.4, C.iron, -8.2 + sx, 0.2, 11.5, 6); B(-9, 11.1, -7.4, 11.9, 0.1);
-box(P, 0.3, 0.025, 0.22, '#e9e4da', -8.4, 0.46, 11.4, 0.005); cyl(P, 0.045, 0.04, 0.09, '#fff', -7.8, 0.5, 11.6, 10);
+KB('tableCoffee', -8.2, 11.5, 0);
 armchair(-5.2, 11.2, -PI / 2);
 [[-9.4, 12.5], [-8.2, 12.5], [-7.0, 12.5]].forEach(([x, z], i) => poi({ id: 'sofa' + i, x, z, rot: PI, drop: -0.32, text: ['Divanda fikirləşir', 'Telefonda trendlərə baxır', 'Podkast dinləyir'][i], anim: 'phone', status: 'break' }));
 poi({ id: 'arm1', x: -5.5, z: 11.2, rot: -PI / 2, drop: -0.32, text: 'Jurnal vərəqləyir', anim: 'phone', status: 'break' });
 // döşəmə lampası
-cyl(P, 0.18, 0.2, 0.03, C.iron, -4.8, 0.015, 13.3, 16); cyl(P, 0.015, 0.015, 1.6, C.iron, -4.8, 0.8, 13.3, 6);
-{ const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, 0.3, 18, 1, true), new THREE.MeshStandardMaterial({ color: '#efe4cf', emissive: '#ffe9c4', emissiveIntensity: 0.4, side: THREE.DoubleSide })); sh.position.set(-4.8, 1.65, 13.3); P.add(sh); B(-5, 13.1, -4.6, 13.5, 0.05); }
+KB('lampRoundFloor', -4.8, 13.3, 0);
+K(P, 'radio', -8.6, 11.5, 0.3, { y: 0.46 });
 // pişik yatağı
 export const CAT_BED = { x: -11.6, z: 12.9 };
 {
@@ -394,11 +379,7 @@ export const CAT_BED = { x: -11.6, z: 12.9 };
 // giriş: döşəkçə, asılqan, çətir
 {
   const mat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.012, 1.1), M('#6b5a48', { r: 1 })); mat.position.set(-14, 0.006, 13.3); mat.receiveShadow = true; P.add(mat);
-  const rack = new THREE.Group(); rack.position.set(-16.4, 0, 13.4); P.add(rack);
-  cyl(rack, 0.025, 0.025, 1.8, C.iron, 0, 0.9, 0, 8); cyl(rack, 0.22, 0.22, 0.03, C.iron, 0, 0.015, 0, 16);
-  for (let i = 0; i < 4; i++) { const a = i / 4 * PI * 2; box(rack, 0.36, 0.7, 0.12, ['#5a4a3a', '#2f3a44', '#7a3e33', '#c9b48a'][i], Math.sin(a) * 0.16, 1.4, Math.cos(a) * 0.16, 0.04).rotation.y = a; }
-  cyl(P, 0.14, 0.12, 0.45, '#3a3d40', -17.2, 0.225, 13.55, 14);
-  for (const [cx, col] of [[-17.18, '#36546b'], [-17.24, '#b42318']]) cyl(P, 0.012, 0.012, 0.8, col, cx, 0.6, 13.55, 6);
+  KB('coatRackStanding', -16.4, 13.4, 0); K(P, 'trashcan', -17.3, 13.5, 0, { s: 0.7 });
   B(-17.5, 13.1, -16.1, 13.8, 0.05);
 }
 // printer
@@ -493,7 +474,7 @@ for (const [x, z] of [[8, -6], [8, 6]]) { cyl(P, 0.16, 0.18, wallH, C.iron, x, w
   box(g, 2.8, 0.05, 1.0, C.walnut, 0, 0.75, 0, 0.01); for (const sx of [-1, 1]) box(g, 0.06, 0.73, 0.9, C.iron, sx * 1.3, 0.365, 0, 0);
   const kb = new THREE.Group(); kb.position.set(0, 0.78, 0.1); g.add(kb); box(kb, 1.3, 0.05, 0.3, '#1b1b1b', 0, 0, 0, 0.01);
   for (let i = 0; i < 24; i++) box(kb, 0.048, 0.02, 0.19, '#efece6', -0.6 + i * 0.052, 0.03, 0.04, 0, false);
-  for (const sx of [-1.1, 1.1]) box(g, 0.3, 0.48, 0.3, '#202120', sx, 1.02, -0.3, 0.02);
+  for (const sx of [-1.1, 1.1]) K(g, 'speakerSmall', sx, -0.3, 0, { y: 0.78 }); K(P, 'speaker', 19.2, -13.2, 0); K(P, 'speaker', 13.8, -13.2, 0);
   box(g, 0.9, 0.5, 0.03, '#161716', 0, 1.33, -0.35, 0.01);
   B(15.1, -11.7, 17.9, -10.7, 0.12);
   const gt = new THREE.Group(); gt.position.set(19, 0, -9); gt.rotation.set(0, -0.6, 0.15); P.add(gt);
@@ -506,9 +487,9 @@ for (const [x, z] of [[8, -6], [8, 6]]) { cyl(P, 0.16, 0.18, wallH, C.iron, x, w
 table(12.5, -3.0, 3, 3);
 table(12.5, 3.4, 3, 3);
 // mətbəx: şərq kənarında
-box(P, 0.7, 0.92, 5.2, C.sage, 19.6, 0.46, -3.0, 0.01); box(P, 0.74, 0.04, 5.24, '#2e2f2c', 19.6, 0.94, -3.0, 0.005);
-box(P, 0.45, 0.55, 0.4, '#262725', 19.6, 1.24, -4.6, 0.03); box(P, 0.9, 2.1, 0.8, '#e3e0d9', 19.5, 1.05, 0.2, 0.03);
-for (let i = 0; i < 5; i++) cyl(P, 0.04, 0.035, 0.09, ['#f1ede6', '#b4643f', '#36546b', '#e2b23a', '#3f5a4a'][i], 19.5, 1.0, -3.4 + i * 0.25, 10);
+for (let i = 0; i < 6; i++) K(P, i === 2 ? 'kitchenSink' : 'kitchenCabinet', 19.55, -5.2 + i * 0.84, PI / 2);
+K(P, 'kitchenCoffeeMachine', 19.55, -4.6, PI / 2 + FIX.kitchenCoffeeMachine, { y: 0.88 }); K(P, 'toaster', 19.55, -2.8, PI / 2, { y: 0.88 });
+K(P, 'kitchenFridgeLarge', 19.5, 0.2, PI / 2);
 B(19.2, -5.7, 20, 0.7, 0.1);
 poi({ id: 'coffee3', x: 18.8, z: -4.6, rot: PI / 2, text: 'Qəhvə hazırlayır', anim: 'drink', status: 'break' });
 poi({ id: 'fridge', x: 18.7, z: 0.2, rot: PI / 2, text: 'Soyuducuya baxır', anim: 'idle', status: 'break' });
@@ -517,7 +498,7 @@ poi({ id: 'fridge', x: 18.7, z: 0.2, rot: PI / 2, text: 'Soyuducuya baxır', ani
   floorPatch(16.5, 10.5, 7, 7, parquetTex, 1.6);
   rug(16.5, 10.5, 5, 4, '#c9bfae');
   sofa(16.5, 13.1, 0, 4.4); B(14.2, 12.6, 18.8, 13.7, 0.05);
-  box(P, 1.8, 0.06, 0.9, C.walnut, 16.5, 0.42, 10.8, 0.01); B(15.6, 10.35, 17.4, 11.25, 0.12);
+  KB('tableCoffeeGlass', 16.5, 10.8, 0); KB('lampSquareFloor', 19.2, 12.8, 0); K(P, 'televisionModern', 16.5, 8.1, PI, { y: 0 }); KB('cabinetTelevision', 16.5, 8.1, PI);
   armchair(13.6, 10.4, PI / 2); armchair(19.3, 10.4, -PI / 2);
   [[15.2, 12.5], [16.5, 12.5], [17.8, 12.5]].forEach(([x, z], i) => poi({ id: 'sofc' + i, x, z, rot: PI, drop: -0.32, text: ['Divanda yarı uzanıb', 'Telefonda trendlərə baxır', 'Kitab oxuyur'][i], anim: 'phone', status: 'break' }));
   poi({ id: 'arm3', x: 13.9, z: 10.4, rot: PI / 2, drop: -0.32, text: 'Eskiz dəftərinə çəkir', anim: 'think', status: 'break' });
