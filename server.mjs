@@ -313,7 +313,10 @@ async function loadCampaigns() {
       normalize(c);
       const wasRunning = c.steps.some(s => ['running', 'review'].includes(s.status));
       c.steps.forEach(s => { if (['running', 'review'].includes(s.status)) s.status = 'pending'; });
-      if (c.status === 'running' || (c.status === 'awaiting' && wasRunning)) {
+      // heç bir addım getmirdisə və biri təsdiq gözləyirsə, kampaniya təsdiq gözləməyə davam edir
+      // (status diskə "awaiting" yazılmamış server dayana bilər)
+      if (ACTIVE.includes(c.status) && !wasRunning && c.steps.some(s => s.status === 'awaiting')) c.status = 'awaiting';
+      else if (ACTIVE.includes(c.status)) {
         c.status = 'interrupted'; c.error = 'Server dayandı — kampaniya yarımçıq qaldı';
       }
       await saveCampaign(c);
@@ -383,15 +386,18 @@ async function runStep(c, i) {
   }
   if (!output) throw lastErr;
 
-  if (st.review && s.returns < MAX_REVIEW_RETURNS) {
+  if (st.review) {
     s.status = 'review';
     emit({ type: 'campaign', phase: 'step-review', campaignId: c.id, step: i, agentId: st.id });
     const v = await cmoReview(c, i, output, ctrl.signal);
-    emit({ type: 'campaign', phase: 'step-reviewed', campaignId: c.id, step: i, agentId: st.id, ok: v.ok, note: v.note });
-    if (!v.ok) {
+    // CMO düzəldilmiş variantı da yoxlayır, amma limitdən sonra geri qaytarmır: qeydi ilə qəbul edir
+    const canReturn = s.returns < MAX_REVIEW_RETURNS;
+    emit({ type: 'campaign', phase: 'step-reviewed', campaignId: c.id, step: i, agentId: st.id, ok: v.ok || !canReturn, forced: !v.ok && !canReturn, note: v.note });
+    if (!v.ok && canReturn) {
       s.output = output; s.returns++; s.notes.push({ by: 'cmo', note: v.note, at: Date.now() });
       return runStep(c, i);
     }
+    if (!v.ok) s.notes.push({ by: 'cmo', note: v.note, at: Date.now(), accepted: true });
   }
 
   s.output = output;
@@ -433,7 +439,7 @@ function pump(c) {
   if (r.failed) return settle(c, 'error', r.failed);
   if (c.steps.every(s => s.status === 'done')) return finish(c);
   if (c.steps.some(s => s.status === 'awaiting')) {
-    if (c.status !== 'awaiting') { c.status = 'awaiting'; persist(c); emit({ type: 'campaign', phase: 'awaiting', campaignId: c.id, steps: c.steps.map((s, k) => (s.status === 'awaiting' ? k : null)).filter(k => k != null) }); }
+    if (c.status !== 'awaiting') { c.status = 'awaiting'; persist(c).then(() => emit({ type: 'campaign', phase: 'awaiting', campaignId: c.id, steps: c.steps.map((s, k) => (s.status === 'awaiting' ? k : null)).filter(k => k != null) })); }
     return;
   }
 }
