@@ -110,20 +110,23 @@ export const TEAM = [
     skills: ['Bəstəkarlıq', 'Ableton / FL', 'Səs dizaynı'] },
 ];
 
+// Kampaniya axını. after: bu addım hansı addımların nəticəsini gözləyir (eyni vaxtda hazır olanlar paralel gedir).
+// review: CMO (Elvin) nəticəni yoxlayır, bəyənməsə qeydlə bir dəfə geri qaytarır.
+// gate: Rəhbər (siz) təsdiqləyənə qədər ondan asılı addımlar başlamır.
 export const PIPE = [
-  { id: 'cmo',      task: 'Brifi təsdiqləyir',          out: 'Təsdiqlənmiş brif' },
-  { id: 'marketer', task: 'Auditoriya & insight',       out: 'Insight sənədi' },
-  { id: 'artdir',   task: 'Kreativ konsepsiya',         out: 'Konsepsiya' },
-  { id: 'copy',     task: 'Sloqan & reklam mətnləri',   out: 'Sloqan və mətnlər' },
-  { id: 'designer', task: 'Key visual',                 out: 'Key visual' },
-  { id: 'junior',   task: 'Bütün ölçülərə adaptasiya',  out: 'Adaptasiyalar' },
-  { id: 'motion',   task: 'Reels animasiyası',          out: 'Animasiya' },
-  { id: 'composer', task: 'Kampaniya jingle-ı',         out: 'Jingle' },
-  { id: 'smmcopy',  task: 'Post caption-ları',          out: 'Caption-lar' },
-  { id: 'smm',      task: 'Kontent plan & paylaşım',    out: 'Paylaşım planı' },
-  { id: 'target',   task: 'Meta Ads işə salınır',       out: 'Aktiv reklamlar' },
-  { id: 'ppc',      task: 'Google Ads işə salınır',     out: 'Axtarış reklamları' },
-  { id: 'analyst',  task: 'Nəticə hesabatı',            out: 'Nəticə hesabatı' },
+  { id: 'cmo',      task: 'Brifi təsdiqləyir',          out: 'Təsdiqlənmiş brif',   after: [],                        gate: true },
+  { id: 'marketer', task: 'Auditoriya & insight',       out: 'Insight sənədi',      after: ['cmo'] },
+  { id: 'artdir',   task: 'Kreativ konsepsiya',         out: 'Konsepsiya',          after: ['marketer'],              review: true, gate: true },
+  { id: 'copy',     task: 'Sloqan & reklam mətnləri',   out: 'Sloqan və mətnlər',   after: ['artdir'],                review: true },
+  { id: 'designer', task: 'Key visual',                 out: 'Key visual',          after: ['artdir', 'copy'],        review: true },
+  { id: 'junior',   task: 'Bütün ölçülərə adaptasiya',  out: 'Adaptasiyalar',       after: ['designer'] },
+  { id: 'motion',   task: 'Reels animasiyası',          out: 'Animasiya',           after: ['designer'] },
+  { id: 'composer', task: 'Kampaniya jingle-ı',         out: 'Jingle',              after: ['artdir'] },
+  { id: 'smmcopy',  task: 'Post caption-ları',          out: 'Caption-lar',         after: ['copy'] },
+  { id: 'smm',      task: 'Kontent plan & paylaşım',    out: 'Paylaşım planı',      after: ['smmcopy', 'junior', 'motion', 'composer'] },
+  { id: 'target',   task: 'Meta Ads işə salınır',       out: 'Aktiv reklamlar',     after: ['junior', 'smm'],         review: true },
+  { id: 'ppc',      task: 'Google Ads işə salınır',     out: 'Axtarış reklamları',  after: ['copy'] },
+  { id: 'analyst',  task: 'Nəticə hesabatı',            out: 'Nəticə hesabatı',     after: ['target', 'ppc', 'smm'] },
 ];
 
 // Dünya: personajlar bu binanın içində yaşayır. Lifti qalxan kimi bayırdakı həyatları "qalır" —
