@@ -7,8 +7,7 @@ import { appendFile, readFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 
-export function createMemory(root) {
-  const dir = path.join(root, 'yaddas');
+export function createMemory(root, dir = path.join(root, 'yaddas')) {
   const db = path.join(dir, 'ofis.db');
   const bin = path.join(root, 'node_modules', '.bin', 'ruflo');
   const ruflo = { available: existsSync(bin), lastError: '' };

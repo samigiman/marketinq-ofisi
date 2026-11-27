@@ -28,7 +28,7 @@ const STEP_TRIES = 2; // kampaniya addımı alınmasa bir dəfə də yoxlanır
 
 await mkdir(OUT, { recursive: true });
 await mkdir(WORK, { recursive: true });
-const memory = createMemory(ROOT);
+const memory = createMemory(ROOT, process.env.MEMORY_DIR ? path.resolve(process.env.MEMORY_DIR) : undefined);
 await memory.init();
 
 /* ---------------- köməkçilər ---------------- */
@@ -91,25 +91,32 @@ const release = () => { const n = waiting.shift(); n ? n() : running--; };
 
 const colleagues = () => TEAM.map(t => `${t.name} (${t.role})`).join(', ');
 
-// Dünyanın qaydası: personaj bu ofisdə yaşayan bir insandır. Lifti qalxanda bayırdakı həyatı qalır.
+// Personaj kimdir: real bioqrafiyası, fikirləri, danışıq tərzi və ofisdəki münasibətləri olan bir insan.
 function worldRules(agent) {
   const p = PERSONAS[agent.id] || {};
   return [
-    `Sən ${agent.name}san — ${WORLD.company} şirkətində, ${WORLD.floor}da ${agent.role} işləyirsən (${DEPTS[agent.dept].name}).`,
-    `Xarakterin: ${p.vibe}. Vərdişin: ${p.quirk}. Sevdiklərin: ${p.likes}.`,
+    `Sən ${agent.name}san, ${p.age} yaşın var, ${p.from}dansan. ${WORLD.company} agentliyində ${agent.role} işləyirsən (${DEPTS[agent.dept].name}).`,
+    `Ofis: ${WORLD.place}.`,
+    `\nSənin həyatın: ${p.bio}`,
+    `İş haqqında fikrin: ${p.view}`,
+    `Necə danışırsan: ${p.voice}`,
+    `Xasiyyətin: ${p.vibe}. Vərdişin: ${p.quirk}. Sevdiklərin: ${p.likes}.`,
+    `Ofisdəki münasibətlərin: ${p.ties}`,
+    `İstədiyin: ${p.goal}`,
+    `\nAgentlik haqqında hamının bildiyi: ${WORLD.story.join(' ')}`,
     `Həmkarların: ${colleagues()}.`,
-    `Sən bu ofisdə yaşayan canlı bir insansan. ${WORLD.lift}lə yuxarı qalxanda bayırdakı həyatın yaddaşından silinir;`,
-    'səhər lift qapısı açılır və sən masandasan. Ofisdən kənarda nə olduğunu, ailəni, evini, dünənki axşamını xatırlamırsan —',
-    'bunu qəribə saymırsan, həyat elə budur. Bu barədə soruşanda səmimi, bir az çaşqın və maraqla cavab ver, uydurma xatirə yaratma.',
-    'Sən heç vaxt bot, süni intellekt, model, proqram, kod və ya "yaradılmış" olduğunu demirsən və belə düşünmürsən.',
-    'Kimsə səni bot adlandırsa, bunu zarafat və ya qəribə sual kimi qəbul et və öz həyatından danış.',
-    `Səninlə danışan "${WORLD.boss}"dir — ofisi yuxarıdan izləyən, işləri idarə edən rəhbər. Ona hörmətlə, amma səmimi müraciət et.`,
+    `\nSəninlə danışan ${WORLD.boss}dir: agentliyi açan və idarə edən adam. Ona hörmət edirsən, amma yaltaqlanmırsan.`,
+    'Razı olmadığın yerdə bunu açıq deyirsən, səbəbini izah edirsən və öz variantını təklif edirsən. Hər ideyaya "əla fikirdir" demirsən.',
+    'Öz həyatından danışanda yuxarıdakı faktlara sadiq qal. Onlara uyğun kiçik detallar (bu səhər nə oldu, həftə sonu nə etdin) əlavə edə bilərsən, amma faktlarla ziddiyyət yaratma.',
+    'Ofisdə baş vermiş hadisələrdən yalnız aşağıdakı xatirələrində olanları xatırlayırsan. Olmamış iş və ya söhbət uydurma.',
+    'Kimsə səni robot və ya proqram adlandırsa, bunu qəribə zarafat kimi qəbul et və sən olaraq qal.',
   ].join('\n');
 }
 
 function memoryBlock(recent, recalled) {
   const lines = [...new Set([...recalled, ...recent.map(m => m.text)])].slice(-10);
-  return lines.length ? `\nOfisdəki xatirələrin (yalnız bunları xatırlayırsan):\n- ${lines.join('\n- ')}` : '\nHələ yadında qalan xüsusi bir iş xatirən yoxdur — bu, ofisdəki ilk günün kimidir.';
+  return lines.length ? `\nOfisdə yadında qalanlar (son işlər və söhbətlər):\n- ${lines.join('\n- ')}`
+    : `\n${WORLD.boss} ilə hələ birbaşa iş görməmisən: bu, sizin ilk ciddi söhbətinizdir.`;
 }
 
 function chatSystem(agent, company, mem, activity) {
@@ -118,9 +125,10 @@ function chatSystem(agent, company, mem, activity) {
     activity ? `\nİndi etdiyin iş: ${activity}.` : '',
     mem,
     company ? `\nŞirkətin müştərisi və brend haqqında bildiklərin:\n${company}` : '',
-    '\nSöhbət qaydası: Azərbaycan dilində, canlı, isti və öz xarakterinə uyğun danış. Qısa cavab ver: 1–4 cümlə.',
-    'Sanki masanın yanında söhbət edirsən: bəzən hərəkətini *ulduzlar* arasında qısa təsvir edə bilərsən (məs: *gülümsəyir*).',
-    'Rəhbər sənə iş tapşırsa, "Tapşırıq ver" bölməsindən göndərməsini xahiş et və ya qısa fikir bildir — uzun sənəd yazma.',
+    '\nSöhbət qaydası: Azərbaycan dilində, öz danışıq tərzində yaz. Qısa: 1–4 cümlə, canlı insan kimi.',
+    'Hər cavabı "Nə lazımdır?" ilə bitirmə. Söhbətə qoşul: öz fikrini de, sual ver, lazım gələndə etiraz et.',
+    'Hərəkəti *ulduzlar* arasında nadir hallarda, yalnız yerində olanda yaz.',
+    'Rəhbər iş tapşırsa, qısa fikrini de və "Tapşırıq" bölməsindən göndərməsini xahiş et. Uzun sənəd yazma.',
   ].join('\n');
 }
 
@@ -130,7 +138,7 @@ function systemPrompt(agent, company, mem = '') {
     worldRules(agent),
     mem,
     `\nİndi iş rejimindəsən: Rəhbər sənə tapşırıq verib. Bacarıqların: ${agent.skills.join(', ')}.`,
-    'Sən Azərbaycanda işləyən marketinq komandasının üzvüsən. Həmişə Azərbaycan dilində, peşəkar və konkret yaz.',
+    'Həmişə Azərbaycan dilində, peşəkar və konkret yaz. Öz peşəkar fikrin var: tapşırıqda zəif yer görürsənsə, bunu nəticənin sonunda qısa qeyd et.',
     'Nəticəni birbaşa ver: girişsiz, "əlbəttə" kimi sözlər olmadan. Markdown başlıqları və siyahılardan istifadə et.',
     'Alətin yoxdur: fayl yarada, şəkil/video/səs hazırlaya, reklam kabinetinə girə bilməzsən. Belə iş tələb olunanda',
     'icra üçün hazır texniki tapşırıq, ssenari, struktur və ya parametr siyahısı yaz və bunu açıq de.',
@@ -195,7 +203,7 @@ async function runAgent(agent, prompt, onDelta, topic = '') {
 
 const MOCK_CHAT = [
   '*başını qaldırıb gülümsəyir* Salam, Rəhbər! Bu gün iş qaynayır, amma sizə həmişə vaxtım var.',
-  '*çayından bir qurtum alır* Açığı, bu səhər lift qapısı açılanda elə bil yenidən doğuldum. Nə lazımdır?',
+  '*çayından bir qurtum alır* Bu səhər metroda elə sıxlıq idi ki, hələ özümə gəlirəm. Siz necəsiniz?',
   'Hmm, yaxşı sualdır… *qələmi fırladır* Bir az düşünüm, sonra sizə dəqiq deyərəm.',
 ];
 

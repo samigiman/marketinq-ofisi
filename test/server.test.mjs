@@ -15,7 +15,7 @@ function startServer(outDir, delay = 0) {
   return new Promise((resolve, reject) => {
     const p = spawn(process.execPath, ['server.mjs'], {
       cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, MOCK: '1', PORT: '0', OUT_DIR: outDir, MOCK_DELAY: String(delay) },
+      env: { ...process.env, MOCK: '1', PORT: '0', OUT_DIR: outDir, MEMORY_DIR: path.join(outDir, 'yaddas'), MOCK_DELAY: String(delay) },
     });
     let out = '';
     const t = setTimeout(() => { p.kill(); reject(new Error('server başlamadı: ' + out)); }, 15000);

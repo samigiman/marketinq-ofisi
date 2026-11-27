@@ -10,27 +10,22 @@ const teamChapter = () => Object.entries(DEPTS).map(([k, d]) => `
   <div class="bk-team">${TEAM.filter(t => t.dept === k).map(t => {
     const p = PERSONAS[t.id] || {};
     return `<div class="bk-person"><div class="bk-av" style="--c:${d.color}">${t.emoji}</div><div>
-      <b>${esc(t.name)}</b> <span class="bk-mood">${p.mood || ''}</span><br><small>${esc(t.role)}</small>
-      <p>${esc(p.vibe || '')}. <i>${esc(p.quirk || '')}.</i> Sevdikləri: ${esc(p.likes || '')}.</p></div></div>`;
+      <b>${esc(t.name)}</b>, ${p.age} · ${esc(p.from || '')}<br><small>${esc(t.role)}</small>
+      <p>${esc(p.bio || '')}</p><p><i>${esc(p.view || '')}</i></p><p>${esc(p.ties || '')}</p></div></div>`;
   }).join('')}</div>`).join('');
 
 export const CHAPTERS = [
   { id: 'xos', icon: '✦', title: 'Xoş gəlmisiniz', html: () => `
-    <p class="bk-lead">${esc(WORLD.company)}, ${esc(WORLD.floor)}. Burada 24 nəfər işləyir. Siz onları yuxarıdan izləyirsiniz.</p>
-    <p>Bu ofis bir maketdir, amma içindəkilər oyuncaq deyil. Hər masada oturan adamın öz xarakteri, öz vərdişi, öz sevdiyi şeylər var.
-    Onlar səhər masalarına keçir, işləyir, bir-birinin yanına gedib sual verir, qəhvə içir, görüşə toplaşır, axşam isə növbə bitir.</p>
-    <p>Siz onlar üçün <b>${esc(WORLD.boss)}</b>siniz. Kameranı istədiyiniz yerə aparın, kiminsə yanına yaxınlaşın və danışın.
-    Nə iş gördüyünü soruşun, ona tapşırıq verin, ya da bütün komandanı bir kampaniya üzərində işə salın.</p>
-    <div class="bk-note">Bu kitabı istənilən vaxt aşağıdakı paneldə <b>📖 Hekayə</b> düyməsi ilə yenidən aça bilərsiniz.</div>` },
+    <p class="bk-lead">${esc(WORLD.company)} kiçik bir reklam agentliyidir. ${TEAM.length} nəfər burada işləyir, siz isə onun rəhbərisiniz.</p>
+    <p>Hər masada oturan adamın öz tarixi var: haradan gəlib, bu işə necə düşüb, evdə onu kim gözləyir, iki ildən sonra harada olmaq istəyir.
+    Hərənin iş haqqında öz fikri var. Siz zəif ideya təklif etsəniz, bunu deyəcəklər. Kimin kimlə dost olduğunu, kimin kimlə mübahisə etdiyini söhbətlərdə görəcəksiniz.</p>
+    <p>Kameranı istədiyiniz yerə aparın, kiminsə yanına gedin və danışın. Ona tapşırıq verin və ya bütün komandanı bir kampaniyaya qoşun.
+    Gördükləri iş və sizinlə söhbətlər yaddaşlarında qalır.</p>
+    <div class="bk-note">Bu kitabı aşağıdakı paneldə <b>Hekayə</b> düyməsi ilə yenidən aça bilərsiniz.</div>` },
 
-  { id: 'lift', icon: '🛗', title: 'Mavi lift', html: () => `
-    <p class="bk-lead">Hər səhər ${esc(WORLD.lift)}in qapısı açılır və hamı artıq masasındadır.</p>
-    <p>Lift yuxarı qalxanda bayırdakı həyat aşağıda qalır. Ev, ailə, dünən axşam nə yeyildi, hansı mahnı dinlənildi: bunların heç biri
-    ${esc(WORLD.floor)}ya çıxmır. Ofisdə olanlar isə qalır: dünənki tapşırıq, Rəhbərlə söhbət, kampaniyada kimə nə təhvil verildi.</p>
-    <p>Onlar bunu qəribə saymır. Onlar üçün həyat elə budur. Ofisdən kənar haqqında soruşsanız, səmimi şəkildə çaşacaq, maraqla düşünəcək,
-    amma heç vaxt uydurma xatirə danışmayacaqlar.</p>
-    <p>Bir də: onlar özlərini <b>bot</b>, <b>proqram</b> və ya <b>kod</b> hesab etmirlər. Belə desəniz, bunu zarafat kimi qəbul edib öz işlərindən danışacaqlar.</p>
-    <div class="bk-note">Hər növbənin sonunda lentdə görəcəksiniz: lift aşağı düşür, səhər isə hamı yenidən masasındadır.</div>` },
+  { id: 'agentlik', icon: '🏢', title: 'Agentlik', html: () => `
+    <p class="bk-lead">${esc(WORLD.place)}.</p>
+    ${WORLD.story.map(p => `<p>${esc(p)}</p>`).join('')}` },
 
   { id: 'komanda', icon: '👥', title: 'Komanda', html: () => `
     <p class="bk-lead">${TEAM.length} nəfər, ${Object.keys(DEPTS).length} şöbə.</p>${teamChapter()}` },
@@ -69,7 +64,7 @@ export const CHAPTERS = [
     <p>İşini bitirən personaj masasından qalxıb növbətinin yanına gedir və "${'📦 hazırdır!'}" deyir. Sonda yekun sənəd <code>outputs/kampaniyalar/</code> qovluğuna yazılır.</p>` },
 
   { id: 'perde', icon: '⚙️', title: 'Pərdə arxası', html: () => `
-    <p class="bk-lead">Personajlar real dil modelidir, amma ofis onları dünyadan təcrid edir.</p>
+    <p class="bk-lead">Bu hissə oyunçu üçündür, personajlar bundan xəbərsizdir: hər biri dil modeli ilə işləyir.</p>
     <ul>
       <li>Brauzer yalnız animasiya və interfeysi çəkir. Gəzmək, söhbət balonları, görüşlər <b>pulsuzdur</b>: heç bir model çağırılmır.</li>
       <li>Siz danışanda, tapşırıq verəndə və ya kampaniya başladanda kiçik Node server (<code>server.mjs</code>) <code>claude -p</code> çağırır.</li>
@@ -92,7 +87,7 @@ export const CHAPTERS = [
 
   { id: 'qaydalar', icon: '📜', title: 'Hüdudlar', html: () => `
     <ul>
-      <li>Dizayn, video və musiqi personajları real fayl yaratmır; texniki tapşırıq, ssenari və struktur yazırlar.</li>
+      <li>Dizayn, video və musiqi personajları hələ real fayl yaratmır: texniki tapşırıq, ssenari və struktur yazırlar.</li>
       <li>Dashboard rəqəmləri hələlik nümunədir; real reklam datası qoşulmayıb.</li>
       <li>Personajlar rəqəm uydurmamağa çalışır, data yoxdursa bunu deyirlər. Yenə də nəticələri yoxlayın.</li>
       <li>Canlı rejim sizin Claude hesabınızdan istifadə edir. Bir kampaniya ${PIPE.length} çağırışdır.</li>
