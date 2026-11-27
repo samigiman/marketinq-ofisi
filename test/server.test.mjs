@@ -238,3 +238,31 @@ test('əhval, təcrübə kitabı, səviyyə və yenidən işə götürmə', asyn
     assert.equal(st.exp.copy.n, 1, 'təcrübə itmir');
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });
+
+import http from 'node:http';
+const rawGet = (base, p, headers = {}) => new Promise((res, rej) => {
+  const u = new URL(base + p);
+  http.get({ host: u.hostname, port: u.port, path: u.pathname, headers }, r => { let b = ''; r.on('data', d => (b += d)); r.on('end', () => res({ status: r.statusCode, body: b })); }).on('error', rej);
+});
+
+test('sosial şəbəkə: işə götürmə yazışma yaradır, hesabat; internetdən yalnız şifrə ilə və yalnız sosial', async () => {
+  const dir = await tmp(); const s = await startServer(dir, 0, { SOCIAL_TICK: '3600', SOCIAL_PASSWORD: 'gizli' });
+  try {
+    await post(s.base, '/api/staff/hire', { id: 'analyst' });
+    await new Promise(r => setTimeout(r, 300));
+    const chats = await fetch(s.base + '/api/social/chats').then(r => r.json());
+    const ofis = chats.find(c => c.id === 'ofis');
+    assert.ok(ofis && ofis.count >= 1, 'Ofis qrupunda salamlama mesajı');
+    const rep = await fetch(s.base + '/api/social/report').then(r => r.json());
+    assert.ok(rep.people.some(p => p.total.messages >= 1));
+    assert.equal(rep.usage.llmLastHour, 0, 'demo rejimdə model çağırılmır');
+
+    const ext = { host: 'ulduz.trycloudflare.com' };
+    assert.equal((await rawGet(s.base, '/api/social/feed', ext)).status, 401, 'şifrəsiz bağlı');
+    const auth = { ...ext, authorization: 'Basic ' + Buffer.from('rehber:gizli').toString('base64') };
+    assert.equal((await rawGet(s.base, '/api/social/feed', auth)).status, 200);
+    assert.equal((await rawGet(s.base, '/sosial.html', auth)).status, 200);
+    assert.equal((await rawGet(s.base, '/api/staff', auth)).status, 403, 'ofisin idarəsi internetdən bağlıdır');
+    assert.equal((await rawGet(s.base, '/index.html', auth)).status, 403);
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});

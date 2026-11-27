@@ -35,7 +35,8 @@ $('dock').innerHTML = `
   <span class="sep"></span>
   <button id="btnCamp" type="button">${icon('rocket')}Kampaniya</button>
   <button id="btnMeet" type="button">${icon('calendar')}Görüş</button>
-  <button id="btnOut" type="button">${icon('folder')}İşlər</button>`;
+  <button id="btnOut" type="button">${icon('folder')}İşlər</button>
+  <button id="btnSocial" type="button">${icon('phone')}Sosial</button>`;
 
 /* ---------------- sol: komanda (üzən panel) ---------------- */
 const rowEls = {};
@@ -422,6 +423,7 @@ $('btnOut').onclick = async () => {
   } catch { box.innerHTML = '<div class="empty">Siyahı açılmadı.</div>'; }
 };
 $('btnBook').onclick = () => openBook();
+$('btnSocial').onclick = () => window.open('/sosial.html', '_blank', 'noopener');
 $('btnNames').onclick = e => { const off = document.body.classList.toggle('hide-names'); e.currentTarget.classList.toggle('on', !off); };
 $('btnCam').onclick = () => { viewIdx = (viewIdx + 1) % VIEWS.length; const v = VIEWS[viewIdx] || stageView(); follow = false; tweenCam(new THREE.Vector3(...v.p), new THREE.Vector3(...v.t)); };
 addEventListener('keydown', e => {

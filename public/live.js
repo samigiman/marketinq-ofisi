@@ -114,7 +114,7 @@ live.init = async () => {
       fire('hello', ev);
       return;
     }
-    if (ev.type === 'pc' || ev.type === 'chat' || ev.type === 'staff') { fire(ev.type, ev); return; }
+    if (ev.type === 'pc' || ev.type === 'chat' || ev.type === 'staff' || ev.type === 'social') { fire(ev.type, ev); return; }
     if (ev.type === 'job') {
       let j = live.jobs.get(ev.jobId);
       if (!j) live.jobs.set(ev.jobId, (j = { agentId: ev.agentId, text: ev.text, chars: 0, tail: '', done: false }));

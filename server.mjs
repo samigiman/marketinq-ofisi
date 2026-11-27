@@ -15,6 +15,7 @@ import { DEPTS, TEAM, PIPE, PERSONAS, WORLD, START_STAFF, PUBLIC_EXCLUDED } from
 import { createMemory } from './memory.mjs';
 import { createComputers } from './pc.mjs';
 import { skillBlock, skillsFound } from './skills.mjs';
+import { createSocial } from './social.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -332,7 +333,7 @@ async function runTask(agentId, text) {
       const dir = path.join(OUT, 'tapsiriqlar'); await mkdir(dir, { recursive: true });
       job.file = path.join('tapsiriqlar', `${stamp()}_${agentId}_${slug(text)}.md`);
       await writeFile(path.join(OUT, job.file), `# ${agent.name} · ${agent.role}\n\n**Tapşırıq:** ${text}\n\n---\n\n${job.output}\n`);
-      job.status = 'done'; addExperience(agentId, text, job.output, 'tapşırıq');
+      job.status = 'done'; addExperience(agentId, text, job.output, 'tapşırıq'); social.onWorkDone(agentId, text).catch(() => {});
       if (claudeState.mode === 'live') memory.remember(agentId, `Rəhbər mənə tapşırıq verdi: "${text}". Hazırladım: ${job.output.replace(/[#*_]/g, '').slice(0, 260)}`, 'is');
       emit({ type: 'job', phase: 'done', jobId: job.id, agentId, text, output: job.output, file: job.file });
     } catch (e) {
@@ -465,6 +466,25 @@ const snapshot = () => ({
     .map(j => ({ jobId: j.id, agentId: j.agentId, text: j.text, status: j.status, file: j.file, error: j.error || null })),
 });
 
+/* ---------------- sosial şəbəkə ---------------- */
+const social = createSocial({ OUT, TEAM, PERSONAS, emit, isHired, hired: () => [...staff.hired], moodNow, worldRules,
+  llm: (system, prompt) => runClaude({ model: CHAT_MODEL, system, prompt, timeoutMs: 60000 }), mode: () => claudeState.mode });
+const isBusy = id => [...jobs.values()].some(j => j.agentId === id && j.status === 'running') || [...campaigns.values()].some(c => c.status === 'running' && PIPE[c.step]?.id === id);
+
+// İnternetdən (tunel) gələn sorğular: yalnız sosial şəbəkəyə baxmaq, şifrə ilə. Ofisin idarəsi yalnız bu kompüterdən.
+const SOCIAL_PASSWORD = process.env.SOCIAL_PASSWORD || '';
+const isLocalHost = req => /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(req.headers.host || '');
+const PUBLIC_OK = p => p === '/' || p === '/sosial.html' || p === '/sosial.js' || p === '/team.js' || p.startsWith('/api/social/');
+function remoteGate(req, res, url) {
+  if (isLocalHost(req)) return true;
+  if (!SOCIAL_PASSWORD) { res.writeHead(403); res.end('Bağlıdır: SOCIAL_PASSWORD təyin edilməyib'); return false; }
+  const ok = (req.headers.authorization || '') === 'Basic ' + Buffer.from('rehber:' + SOCIAL_PASSWORD).toString('base64');
+  if (!ok) { res.writeHead(401, { 'www-authenticate': 'Basic realm="Ulduz sosial"' }); res.end('Şifrə lazımdır'); return false; }
+  if (!PUBLIC_OK(url.pathname) || req.method !== 'GET') { res.writeHead(403); res.end('İnternetdən yalnız sosial şəbəkəyə baxmaq olar'); return false; }
+  if (url.pathname === '/') { res.writeHead(302, { location: '/sosial.html' }); res.end(); return false; }
+  return true;
+}
+
 /* ---------------- HTTP ---------------- */
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.gltf': 'model/gltf+json', '.bin': 'application/octet-stream' };
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }); res.end(JSON.stringify(obj)); };
@@ -475,6 +495,7 @@ async function body(req) {
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
+  if (!remoteGate(req, res, url)) return;
   try {
     if (url.pathname === '/api/health') return json(res, 200, { ...claudeState, pcRoot: pc.root, web: WEB, skills: await skillsFound(), model: MODEL, chatModel: CHAT_MODEL, agents: TEAM.length, ruflo: memory.ruflo.available, rufloError: memory.ruflo.lastError });
     if (url.pathname === '/api/recheck' && req.method === 'POST') { await checkClaude(); return json(res, 200, claudeState); }
@@ -504,6 +525,10 @@ const server = http.createServer(async (req, res) => {
     }
     // heyət: kim işləyir, kim namizəddir; işə götür və çıxar
     if (url.pathname === '/api/staff') return json(res, 200, staffView());
+    if (url.pathname === '/api/social/feed') return json(res, 200, social.feed());
+    if (url.pathname === '/api/social/chats') return json(res, 200, social.chats());
+    if (url.pathname === '/api/social/chat') return json(res, 200, social.chatOf(url.searchParams.get('id')) || { messages: [] });
+    if (url.pathname === '/api/social/report') return json(res, 200, { people: social.report(), usage: social.usage() });
     if (url.pathname === '/api/experience') return json(res, 200, book.slice(-60).reverse().map(e => ({ ...e, name: nameOf(e.agentId) })));
     const sAct = url.pathname.match(/^\/api\/staff\/(hire|fire)$/)?.[1];
     if (sAct && req.method === 'POST') {
@@ -518,6 +543,7 @@ const server = http.createServer(async (req, res) => {
         staff.hired.push(id); staff.left = staff.left.filter(l => l.id !== id); await saveStaff();
         memory.remember(id, back ? `${WORLD.boss} məni yenidən işə götürdü. Əvvəl işdən çıxarılmışdım, bu dəfə özümü sübut etməliyəm.` : `Bu gün ${WORLD.company}-də ilk iş günüm idi. ${WORLD.boss} məni ${agent.role} vəzifəsinə götürdü.`, 'heyet');
         emit({ type: 'staff', phase: 'hire', agentId: id, back, mood: moodView() });
+        social.onHire(id, back).catch(() => {});
       } else {
         if (id === 'cmo') return json(res, 409, { error: 'Elvin agentliyin direktorudur, onu çıxarmaq olmaz' });
         if (!isHired(id)) return json(res, 409, { error: `${agent.name} bizdə işləmir` });
@@ -529,6 +555,7 @@ const server = http.createServer(async (req, res) => {
         memory.remember(id, `${WORLD.boss} məni işdən çıxardı. Bu, gözlənilməz və ağır oldu.`, 'heyet');
         for (const other of staff.hired) memory.remember(other, `${agent.name} (${agent.role}) işdən çıxarıldı. Ofisdə hamı narahatdır, növbəti kim olacaq?`, 'heyet');
         emit({ type: 'staff', phase: 'fire', agentId: id, mood: moodView() });
+        social.onFire(id).catch(() => {});
       }
       return json(res, 200, staffView());
     }
@@ -595,6 +622,7 @@ const server = http.createServer(async (req, res) => {
 
 await checkClaude();
 await loadCampaigns();
+if (process.env.SOCIAL !== '0') await social.start(isBusy);
 server.listen(PORT, '127.0.0.1', () => {
   console.log(`🏢 Marketinq HQ: http://localhost:${server.address().port}`);
   console.log(`   Rejim: ${claudeState.mode} — ${claudeState.detail}`);

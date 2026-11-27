@@ -68,6 +68,13 @@ live.init().then(async () => {
     log(null, `<b>«${esc(last.name)}»</b> ${last.steps.length}/${last.total} addımda yarımçıq qalıb. ${resumeLink(last.id, last.name)}`);
 });
 if (!bookSeen()) setTimeout(() => openBook('xos'), 900);
+// sosial şəbəkədə aktivlik: boş olan personaj bir az telefona baxır
+live.sub('social', ({ kind, agentId }) => {
+  const a = byId(agentId); if (!a?.hired || a.mode !== 'free') return;
+  const t = { post: 'Ulduzgram-da post paylaşdı', comment: 'Ulduzgram-da şərh yazdı', like: 'Ulduzgram-a baxır', message: 'Ulduz Chat-da yazışır' }[kind];
+  if (!t) return;
+  a.run(async () => { a.status = 'break'; a.anim = 'phone'; a.say(t); await a.sleep(kind === 'like' ? 3 : 6); }, 'free');
+});
 // işə götürmə / çıxarma (başqa pəncərədən də gələ bilər)
 live.sub('staff', ({ phase, agentId, back, mood }) => {
   const a = byId(agentId); if (!a) return;
