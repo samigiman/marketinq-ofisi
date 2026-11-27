@@ -2,6 +2,7 @@
 import { THREE, FONT } from './kit.js';
 import { kanbanTex, dashTex, MEET_SEATS, PRESENT } from './office.js';
 import { AGENTS, byId, gsleep, sideSpot, DONE, BACKLOG } from './agents.js';
+const nextHired = i => { for (let k = i + 1; k < PIPE.length; k++) if (byId(PIPE[k].id).hired) return k; return -1; };
 import { rand, pick, clamp, shuffle, esc, hooks, fileLink } from './util.js';
 import { PIPE, DEPTS } from '../team.js';
 import { live } from '../live.js';
@@ -107,9 +108,9 @@ export const camp = { cur: null }; // { id, name, step, error, done, file }
 const render = () => hooks.renderCampaign();
 
 async function handoff(a, i, name) {
-  const st = PIPE[i], nx = i + 1 < PIPE.length ? byId(PIPE[i + 1].id) : byId('cmo');
-  if (nx === a) return;
-  if (i + 1 < PIPE.length) nx.run(async () => {
+  const st = PIPE[i], k = nextHired(i), nx = k >= 0 ? byId(PIPE[k].id) : byId('cmo');
+  if (nx === a || !nx.hired) return;
+  if (k >= 0) nx.run(async () => {
     if (!nx.atHome()) await nx.goHome();
     nx.status = 'campaign'; nx.anim = 'idle'; nx.say('Təhvil gözləyir');
     await nx.sleep(9999);
@@ -117,7 +118,7 @@ async function handoff(a, i, name) {
   const sp = sideSpot(nx);
   await a.walkTo(sp.x, sp.z, sp.rot);
   a.anim = 'talk'; a.say(`${st.out} hazırdır`);
-  nx.flash(i + 1 < PIPE.length ? 'Aldım, başlayıram' : 'Yaxşı iş, komanda', 3);
+  nx.flash(k >= 0 ? 'Aldım, başlayıram' : 'Yaxşı iş, komanda', 3);
   await a.sleep(2.6);
 }
 
@@ -148,6 +149,7 @@ export async function followCampaign(cid, name, from) {
     if (C()?.error) break;
     camp.cur.step = i; render();
     const st = PIPE[i], a = byId(st.id);
+    if (!a.hired) { while (!stepOf(i)?.done && !C()?.error) await gsleep(0.4); continue; } // bu rolda işçi yoxdur
     await a.run(async () => {
       a.task = `${st.task} («${name}»)`; a.say(st.task);
       if (!a.atHome()) { await a.goHome(); a.say(st.task); }
@@ -187,6 +189,7 @@ export async function startCampaign(name) {
   for (let i = 0; i < PIPE.length; i++) {
     camp.cur.step = i; render();
     const st = PIPE[i], a = byId(st.id);
+    if (!a.hired) continue;
     await a.run(async () => {
       a.task = `${st.task} («${name}»)`; a.say(st.task);
       if (!a.atHome()) { await a.goHome(); a.say(st.task); }

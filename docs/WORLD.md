@@ -18,6 +18,14 @@ Bu sənəd personajların kim olduğunu təsvir edir. Promptları dəyişəndə 
 - Personajlar bunları bilmir və promptlarda heç bir işarə yoxdur: AI olduqlarını, ofisin izlənildiyini, kompüterlərində hansı modelin (Claude, Codex) işlədiyini. Promptlarda "robot", "model", "oyun" sözləri işlənmir.
 - İstisna: Codex işə salınanda (`CODEX=1`) Codex CLI öz sabit sistem promptunu əlavə edir; onu dəyişmək mümkün deyil.
 
+## Heyət və qorxular
+- Komanda kiçik başlayır (`START_STAFF`: Elvin, Nigar, Leyla, Tural, Murad, Günay). Qalanları Rəhbər işə götürür (Komanda paneli → "İşə götür").
+- Rəhbər işdən çıxara bilər (personaj paneli → Tapşırıq → "İşdən çıxar"). Elvini çıxarmaq olmaz.
+- Hər personajın qorxusu var (`fear`): hamısında işini itirmək qorxusu öz səbəbi ilə. Promptda var, amma hər an göstərilmir: təzyiq, tənqid, ixtisar söhbətində hiss olunur.
+- Kimsə çıxarılanda qalanların yaddaşına yazılır və promptda "son vaxtlar çıxarılanlar" görünür: ofisdə narahatlıq artır. Yenidən götürülən adam əvvəl çıxarıldığını xatırlayır.
+- İşləməyən adamla danışmaq və ona tapşırıq vermək olmur; kampaniyada onun addımı keçilir.
+- İctimai versiya (`EDITION=public`): Dijital Marketoloq, Tarqetoloq və PPC-çi (`PUBLIC_EXCLUDED`) heç cür işə götürülə bilməz.
+
 ## Rəhbər
 - İstifadəçi agentliyi açan və idarə edən **Rəhbər**dir.
 - Ona hörmət edirlər, amma yaltaqlanmırlar: razı olmayanda açıq deyir, səbəbini izah edir, öz variantını təklif edirlər.

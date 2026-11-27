@@ -36,6 +36,9 @@ live.task = async (agentId, text) => {
 };
 live.campaign = async (name) => post('/api/campaign', { name });
 live.resume = async (campaignId) => post('/api/campaign/resume', { campaignId });
+live.staff = async () => fetch('/api/staff', { cache: 'no-store' }).then(r => (r.ok ? r.json() : null));
+live.hire = async id => post('/api/staff/hire', { id });
+live.fire = async id => post('/api/staff/fire', { id });
 live.campaigns = async () => fetch('/api/campaigns', { cache: 'no-store' }).then(r => (r.ok ? r.json() : []));
 
 // Kampaniya vəziyyətini (snapshot və ya davam) brauzerdə qurur: bitmiş addımlar "done" sayılır.
@@ -111,7 +114,7 @@ live.init = async () => {
       fire('hello', ev);
       return;
     }
-    if (ev.type === 'pc' || ev.type === 'chat') { fire(ev.type, ev); return; }
+    if (ev.type === 'pc' || ev.type === 'chat' || ev.type === 'staff') { fire(ev.type, ev); return; }
     if (ev.type === 'job') {
       let j = live.jobs.get(ev.jobId);
       if (!j) live.jobs.set(ev.jobId, (j = { agentId: ev.agentId, text: ev.text, chars: 0, tail: '', done: false }));

@@ -11,7 +11,7 @@ import { readFile, writeFile, mkdir, readdir, stat, rename } from 'node:fs/promi
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEPTS, TEAM, PIPE, PERSONAS, WORLD } from './public/team.js';
+import { DEPTS, TEAM, PIPE, PERSONAS, WORLD, START_STAFF, PUBLIC_EXCLUDED } from './public/team.js';
 import { createMemory } from './memory.mjs';
 import { createComputers } from './pc.mjs';
 
@@ -91,7 +91,25 @@ let running = 0; const waiting = [];
 const slot = () => new Promise(r => (running < MAX_PARALLEL ? (running++, r()) : waiting.push(r)));
 const release = () => { const n = waiting.shift(); n ? n() : running--; };
 
-const colleagues = () => TEAM.map(t => `${t.name} (${t.role})`).join(', ');
+/* ---------------- heyət: kim işləyir ---------------- */
+// Komanda kiçik başlayır (START_STAFF); Rəhbər işə götürür və çıxarır. Vəziyyət OUT/heyet.json-da.
+// İctimai versiyada (EDITION=public) PUBLIC_EXCLUDED rolları heç cür işə götürülə bilməz.
+const EDITION = process.env.EDITION === 'public' ? 'public' : 'private';
+const EXCLUDED = new Set(EDITION === 'public' ? PUBLIC_EXCLUDED : []);
+const STAFF_FILE = path.join(OUT, 'heyet.json');
+const staff = { hired: [], left: [] }; // left: [{ id, at }] — son çıxarılanlar
+try { Object.assign(staff, JSON.parse(await readFile(STAFF_FILE, 'utf8'))); } catch { staff.hired = [...START_STAFF]; }
+staff.hired = staff.hired.filter(id => TEAM.some(t => t.id === id) && !EXCLUDED.has(id));
+const isHired = id => staff.hired.includes(id);
+const saveStaff = () => writeFile(STAFF_FILE, JSON.stringify(staff, null, 1)).catch(() => {});
+const staffView = () => ({
+  edition: EDITION, hired: staff.hired,
+  candidates: TEAM.filter(t => !isHired(t.id) && !EXCLUDED.has(t.id)).map(t => t.id),
+  left: staff.left.slice(-5),
+});
+
+const colleagues = () => TEAM.filter(t => isHired(t.id)).map(t => `${t.name} (${t.role})`).join(', ');
+const nameOf = id => TEAM.find(t => t.id === id)?.name || id;
 
 // Personaj kimdir: real bioqrafiyası, fikirləri, danışıq tərzi və ofisdəki münasibətləri olan bir insan.
 function worldRules(agent) {
@@ -105,8 +123,10 @@ function worldRules(agent) {
     `Xasiyyətin: ${p.vibe}. Vərdişin: ${p.quirk}. Sevdiklərin: ${p.likes}.`,
     `Ofisdəki münasibətlərin: ${p.ties}`,
     `İstədiyin: ${p.goal}`,
+    `Qorxun: ${p.fear} Bu qorxunu hər an göstərmirsən, amma təzyiq, tənqid və ya ixtisar söhbəti olanda hiss olunur.`,
     `\nAgentlik haqqında hamının bildiyi: ${WORLD.story.join(' ')}`,
-    `Həmkarların: ${colleagues()}.`,
+    `İndi agentlikdə ${staff.hired.length} nəfərsiniz. Həmkarların: ${colleagues()}.`,
+    staff.left.length ? `Son vaxtlar işdən çıxarılanlar: ${staff.left.slice(-3).map(l => nameOf(l.id)).join(', ')}. Bu, ofisdə hamını narahat edir, səni də.` : '',
     `\nSəninlə danışan ${WORLD.boss}dir: agentliyi açan və idarə edən adam. Ona hörmət edirsən, amma yaltaqlanmırsan.`,
     'Razı olmadığın yerdə bunu açıq deyirsən, səbəbini izah edirsən və öz variantını təklif edirsən. Hər ideyaya "əla fikirdir" demirsən.',
     'Öz həyatından danışanda yuxarıdakı faktlara sadiq qal. Onlara uyğun kiçik detallar (bu səhər nə oldu, həftə sonu nə etdin) əlavə edə bilərsən, amma faktlarla ziddiyyət yaratma.',
@@ -242,6 +262,7 @@ const campaigns = new Map();
 
 async function runTask(agentId, text) {
   const agent = byId[agentId]; if (!agent) throw new Error('Belə agent yoxdur');
+  if (!isHired(agentId)) throw Object.assign(new Error(`${agent.name} bizdə işləmir`), { code: 409 });
   const job = { id: uid(), agentId, text, status: 'running', output: '', file: null };
   jobs.set(job.id, job);
   emit({ type: 'job', phase: 'start', jobId: job.id, agentId, text, mode: claudeState.mode });
@@ -298,12 +319,14 @@ async function loadCampaigns() {
 
 function stepPrompt(camp, i) {
   const st = PIPE[i];
-  const prev = camp.steps.map((s, k) => `### ${k + 1}. ${byId[s.agentId].name} (${byId[s.agentId].role}) — ${PIPE[k].out}\n${clip(s.output, 2200)}`).join('\n\n');
+  const prev = camp.steps.map((s, k) => (s.skipped ? '' : `### ${k + 1}. ${byId[s.agentId].name} (${byId[s.agentId].role}) — ${PIPE[k].out}\n${clip(s.output, 2200)}`)).filter(Boolean).join('\n\n');
+  const nx = PIPE.findIndex((p, k) => k > i && isHired(p.id));
   return [
     `KAMPANİYA: «${camp.name}»`,
     `TAPŞIRIQ: ${st.task}`,
     `Sənin addımın: ${i + 1}/${PIPE.length}. Gözlənilən nəticə: ${st.out}.`,
-    i + 1 < PIPE.length ? `Nəticən növbəti addıma — ${byId[PIPE[i + 1].id].name} (${byId[PIPE[i + 1].id].role}) — təhvil veriləcək.` : 'Sən sonuncusan: bütün kampaniyanın yekun hesabatını yaz.',
+    nx >= 0 ? `Nəticən növbəti addıma — ${byId[PIPE[nx].id].name} (${byId[PIPE[nx].id].role}) — təhvil veriləcək.` : 'Sən sonuncusan: bütün kampaniyanın yekun hesabatını yaz.',
+    PIPE.some(p => !isHired(p.id)) ? `Komandada bu işləri görən adam yoxdur, onları sən də nəzərə al: ${PIPE.filter(p => !isHired(p.id)).map(p => p.task).join(', ')}.` : '',
     prev ? `\nƏvvəlki addımların nəticələri:\n\n${prev}` : '\nSən birincisən: kampaniyanın brifini özün formalaşdır və təsdiqlə.',
     '\nYalnız öz addımının nəticəsini yaz, əvvəlkiləri təkrarlama.',
   ].join('\n');
@@ -322,6 +345,12 @@ function driveCampaign(camp) {
       await saveCampaign(camp);
       for (let i = from; i < PIPE.length; i++) {
         const st = PIPE[i], agent = byId[st.id];
+        // bu rolda işçi yoxdursa, addım keçilir
+        if (!isHired(st.id)) {
+          camp.steps.push({ agentId: st.id, output: '', file: null, skipped: true }); await saveCampaign(camp);
+          emit({ type: 'campaign', phase: 'step-done', campaignId: camp.id, step: i, agentId: st.id, task: st.task, out: st.out, skipped: true });
+          continue;
+        }
         camp.step = i;
         emit({ type: 'campaign', phase: 'step-start', campaignId: camp.id, step: i, agentId: st.id, task: st.task });
         let output, lastErr;
@@ -343,7 +372,7 @@ function driveCampaign(camp) {
         if (claudeState.mode === 'live') memory.remember(st.id, `«${camp.name}» kampaniyasında "${st.task}" işini gördüm${i + 1 < PIPE.length ? `, sonra ${byId[PIPE[i + 1].id].name}-a təhvil verdim` : ''}. Əsas fikir: ${output.replace(/[#*_]/g, '').slice(0, 200)}`, 'kampaniya');
         emit({ type: 'campaign', phase: 'step-done', campaignId: camp.id, step: i, agentId: st.id, task: st.task, out: st.out, output, file });
       }
-      const all = camp.steps.map((s, k) => `# ${k + 1}. ${byId[s.agentId].name} · ${byId[s.agentId].role} — ${PIPE[k].out}\n\n${s.output}`).join('\n\n---\n\n');
+      const all = camp.steps.map((s, k) => (s.skipped ? '' : `# ${k + 1}. ${byId[s.agentId].name} · ${byId[s.agentId].role} — ${PIPE[k].out}\n\n${s.output}`)).filter(Boolean).join('\n\n---\n\n');
       await writeFile(path.join(CAMP_DIR, camp.dir, '00-tam-kampaniya.md'), `# Kampaniya: ${camp.name}\n\n${all}\n`);
       camp.status = 'done'; camp.step = PIPE.length;
       await saveCampaign(camp);
@@ -404,8 +433,8 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/task' && req.method === 'POST') {
       const { agentId, text } = await body(req);
       if (!text || String(text).length > 400) return json(res, 400, { error: 'Tapşırıq mətni 1–400 simvol olmalıdır' });
-      const job = await runTask(agentId, String(text).trim());
-      return json(res, 200, { jobId: job.id, mode: claudeState.mode });
+      try { const job = await runTask(agentId, String(text).trim()); return json(res, 200, { jobId: job.id, mode: claudeState.mode }); }
+      catch (e) { return json(res, e.code || 400, { error: e.message }); }
     }
     if (url.pathname === '/api/campaign' && req.method === 'POST') {
       const { name } = await body(req);
@@ -418,6 +447,29 @@ const server = http.createServer(async (req, res) => {
       try { const c = resumeCampaign(String(campaignId || '')); return json(res, 200, { campaignId: c.id, from: c.steps.length, mode: claudeState.mode }); }
       catch (e) { return json(res, e.code || 500, { error: e.message }); }
     }
+    // heyət: kim işləyir, kim namizəddir; işə götür və çıxar
+    if (url.pathname === '/api/staff') return json(res, 200, staffView());
+    const sAct = url.pathname.match(/^\/api\/staff\/(hire|fire)$/)?.[1];
+    if (sAct && req.method === 'POST') {
+      const { id } = await body(req); const agent = byId[id];
+      if (!agent) return json(res, 404, { error: 'Belə adam yoxdur' });
+      if (sAct === 'hire') {
+        if (EXCLUDED.has(id)) return json(res, 403, { error: 'Bu versiyada bu vəzifəyə işçi götürülmür' });
+        if (isHired(id)) return json(res, 409, { error: `${agent.name} artıq bizdə işləyir` });
+        const back = staff.left.some(l => l.id === id);
+        staff.hired.push(id); staff.left = staff.left.filter(l => l.id !== id); await saveStaff();
+        memory.remember(id, back ? `${WORLD.boss} məni yenidən işə götürdü. Əvvəl işdən çıxarılmışdım, bu dəfə özümü sübut etməliyəm.` : `Bu gün ${WORLD.company}-də ilk iş günüm idi. ${WORLD.boss} məni ${agent.role} vəzifəsinə götürdü.`, 'heyet');
+        emit({ type: 'staff', phase: 'hire', agentId: id, back });
+      } else {
+        if (id === 'cmo') return json(res, 409, { error: 'Elvin agentliyin direktorudur, onu çıxarmaq olmaz' });
+        if (!isHired(id)) return json(res, 409, { error: `${agent.name} bizdə işləmir` });
+        staff.hired = staff.hired.filter(x => x !== id); staff.left.push({ id, at: Date.now() }); staff.left = staff.left.slice(-10); await saveStaff();
+        memory.remember(id, `${WORLD.boss} məni işdən çıxardı. Bu, gözlənilməz və ağır oldu.`, 'heyet');
+        for (const other of staff.hired) memory.remember(other, `${agent.name} (${agent.role}) işdən çıxarıldı. Ofisdə hamı narahatdır, növbəti kim olacaq?`, 'heyet');
+        emit({ type: 'staff', phase: 'fire', agentId: id });
+      }
+      return json(res, 200, staffView());
+    }
     if (url.pathname === '/api/campaigns') {
       const list = [...campaigns.values()].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 50).map(campSummary);
       return json(res, 200, list);
@@ -426,6 +478,7 @@ const server = http.createServer(async (req, res) => {
       const { agentId, message, history = [], activity = '' } = await body(req);
       const agent = byId[agentId];
       if (!agent || !message || String(message).length > 600) return json(res, 400, { error: 'Yanlış sorğu' });
+      if (!isHired(agentId)) return json(res, 409, { error: `${agent.name} bizdə işləmir` });
       res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-cache', 'x-mode': claudeState.mode });
       let sent = 0;
       try {

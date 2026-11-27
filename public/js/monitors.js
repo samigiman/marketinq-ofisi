@@ -17,7 +17,7 @@ export function push(id, line) {
 }
 
 function draw(id) {
-  const s = SCREENS[id]; if (!s) return;
+  const s = SCREENS[id]; if (!s || s.active === false) return; // boş masanın monitoru sönülüdür
   const g = s.ctx, w = s.w, h = s.h, lines = JOURNAL[id] || [];
   g.fillStyle = '#1b1e1c'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#2a2e2b'; g.fillRect(0, 0, w, 22);

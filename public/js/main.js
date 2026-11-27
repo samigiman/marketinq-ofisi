@@ -1,12 +1,13 @@
 // Başlanğıc, klik və əsas dövr.
 import { THREE, renderer, labelRenderer, scene, camera, controls } from './kit.js';
 import { screenMeshes } from './office.js';
-import { AGENTS, timers, hitboxes } from './agents.js';
+import { AGENTS, timers, hitboxes, initStaff, syncStaff, arrive, leave, byId } from './agents.js';
 import { flush, loadAll } from './monitors.js';
+import { updateCat, catHit, meow } from './cat.js';
 import { drawDash, drawKanban, tickKPI, callMeeting, meeting, camp, followCampaign, resumeLink } from './scenarios.js';
-import { select, deselect, log, refreshPanels, updateNear, simSpeed, stepCamera, openComputer, stopFollow } from './ui.js';
+import { select, deselect, selected, log, refreshPanels, updateNear, stepCamera, openComputer, stopFollow, renderTeam } from './ui.js';
 import { rand, pick, esc, clock } from './util.js';
-import { WORLD } from '../team.js';
+import { WORLD, START_STAFF } from '../team.js';
 import { live } from '../live.js';
 import { openBook, bookSeen } from '../book.js';
 
@@ -16,8 +17,9 @@ function pick3d(e) {
   const r = renderer.domElement.getBoundingClientRect();
   mouse.set((e.clientX - r.left) / r.width * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(mouse, camera);
-  const hit = ray.intersectObjects([...hitboxes, ...screenMeshes], false)[0];
+  const hit = ray.intersectObjects([...hitboxes, ...screenMeshes, catHit], false)[0];
   if (!hit) return null;
+  if (hit.object === catHit) return { cat: true };
   if (hit.object.userData.agent) return { agent: hit.object.userData.agent };
   return { agent: AGENTS.find(a => a.id === hit.object.userData.agentId), screen: true };
 }
@@ -27,6 +29,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
   const h = pick3d(e);
   if (!h) { deselect(); return; }
+  if (h.cat) { meow(); return; }
   select(h.agent, true);
   if (h.screen) openComputer(h.agent);
 });
@@ -38,7 +41,8 @@ renderer.domElement.addEventListener('pointermove', e => {
 
 /* ---------------- başlanğıc ---------------- */
 drawDash(); drawKanban(true);
-for (const a of AGENTS) {
+initStaff(START_STAFF); renderTeam();
+for (const a of AGENTS.filter(a => a.hired)) {
   a.run(async () => {
     a.task = pick(a.def.tasks); a.status = 'work'; a.anim = 'type'; a.say(a.task);
     await a.sleep(rand(2, 14), true);
@@ -55,11 +59,20 @@ live.init().then(async () => {
   else if (live.mode === 'mock') log(null, 'Demo rejim: server işləyir, model çağırılmır.');
   if (!live.on) return;
   loadAll();
+  const st = await live.staff().catch(() => null);
+  if (st) { syncStaff(st.hired); renderTeam(st); }
   const last = (await live.campaigns().catch(() => []))[0];
   if (last && ['interrupted', 'error'].includes(last.status))
     log(null, `<b>«${esc(last.name)}»</b> ${last.steps.length}/${last.total} addımda yarımçıq qalıb. ${resumeLink(last.id, last.name)}`);
 });
 if (!bookSeen()) setTimeout(() => openBook('xos'), 900);
+// işə götürmə / çıxarma (başqa pəncərədən də gələ bilər)
+live.sub('staff', ({ phase, agentId, back }) => {
+  const a = byId(agentId); if (!a) return;
+  if (phase === 'hire') { arrive(a, back); log(a, back ? 'yenidən işə götürüldü' : `işə götürüldü: ${esc(a.def.role)}`); }
+  if (phase === 'fire') { if (selected?.id === a.id) deselect(); leave(a); log(a, 'işdən çıxarıldı'); }
+  renderTeam();
+});
 
 /* ---------------- dövr ---------------- */
 const clk = new THREE.Clock();
@@ -68,14 +81,15 @@ setTimeout(() => { const l = document.getElementById('loading'); l.style.opacity
 
 function animate() {
   requestAnimationFrame(animate);
-  const rdt = Math.min(clk.getDelta(), 0.1), dt = rdt * simSpeed;
+  const rdt = Math.min(clk.getDelta(), 0.1), dt = rdt; // ofis real vaxtda yaşayır
   simT += dt; clock.min += dt;
   if (clock.min >= 19 * 60) { clock.min = 9 * 60; log(null, 'Saat 19:00, iş günü bitdi. Növbəti səhər hamı yenidən masasındadır.'); }
   for (const tm of timers) {
     tm.t -= dt;
     if (tm.t <= 0) { timers.delete(tm); if (tm.agent && tm.agent.progTimer === tm) tm.agent.progTimer = null; tm.res(); }
   }
-  for (const a of AGENTS) a.update(dt);
+  for (const a of AGENTS) if (a.hired || a.group.visible) a.update(dt);
+  updateCat(dt);
   if (simT > nextMeet) { nextMeet = simT + rand(140, 200); if (!meeting && !camp.cur) callMeeting(); }
   stepCamera(rdt);
   nearT += rdt; if (nearT > 0.25) { nearT = 0; updateNear(); }

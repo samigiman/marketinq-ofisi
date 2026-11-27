@@ -2,13 +2,10 @@
 import { THREE, scene, camera, M, box, cyl, sph } from './kit.js';
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { findPath } from './nav.js';
-import { SEATS, POIS } from './office.js';
+import { SEATS, POIS, setDesk } from './office.js';
 import { PI, rand, pick, lerp, clamp, wrapA, hash, esc, clockStr, hooks, fileLink, shuffle } from './util.js';
 import { TEAM, DEPTS } from '../team.js';
-import { loadPeople, buildPerson, applyPose } from './people.js';
-
-// skeletli modellər; yüklənməsə köhnə sadə fiqurlar qalır
-const RIGGED = await loadPeople().then(() => true, e => { console.warn('Modellər yüklənmədi, sadə fiqurlar işlənir', e); return false; });
+import { buildCute } from './cute.js';
 
 export const STATUS = {
   work:     ['İşləyir', '#2f7d5b'],
@@ -19,6 +16,7 @@ export const STATUS = {
   meeting:  ['Görüşdə', '#b2622f'],
   campaign: ['Kampaniyada', '#a33a2e'],
   assigned: ['Tapşırıqda', '#1f5f4a'],
+  away:     ['Bizdə işləmir', '#9a9a95'],
 };
 
 const ASK = {
@@ -82,43 +80,11 @@ export class Agent {
     this.build(); this.buildLabel();
   }
   build() {
-    const d = this.def, L = d.look;
     const g = this.group = new THREE.Group(); scene.add(g);
-    if (RIGGED) {
-      this.rig = buildPerson(d, this.color); g.add(this.rig.root);
-      this.eyes = []; this.mouth = null;
-      const hb = new THREE.Mesh(hitGeo, hitMat); hb.position.y = 1.1; hb.userData.agent = this; g.add(hb); hitboxes.push(hb);
-      return;
-    }
-    const top = M(this.color, { r: 0.9 }), skin = M(L.skin, { r: 0.7 }), hair = M(L.hair, { r: 0.85 });
-    const pants = M(L.pants || PANTS[hash(d.id) % PANTS.length]), shoe = M('#1d1e1f');
-    const hip = 0.92;
-    const leg = x => { const p = new THREE.Group(); p.position.set(x, hip, 0); box(p, 0.17, 0.86, 0.2, pants, 0, -0.43, 0, 0.04); box(p, 0.18, 0.08, 0.3, shoe, 0, -0.88, 0.04, 0.03); g.add(p); return p; };
-    this.legL = leg(-0.1); this.legR = leg(0.1);
-    box(g, 0.5, 0.66, 0.3, top, 0, hip + 0.33, 0, 0.08);
-    const arm = x => { const p = new THREE.Group(); p.position.set(x, hip + 0.6, 0); box(p, 0.12, 0.58, 0.14, top, 0, -0.27, 0, 0.05); box(p, 0.1, 0.1, 0.11, skin, 0, -0.61, 0, 0.03); g.add(p); return p; };
-    this.armL = arm(-0.32); this.armR = arm(0.32);
-    box(g, 0.12, 0.1, 0.12, skin, 0, hip + 0.71, 0, 0.02);
-    const h = this.head = new THREE.Group(); h.position.set(0, hip + 0.92, 0); g.add(h);
-    box(h, 0.3, 0.34, 0.3, skin, 0, 0, 0, 0.1);
-    const eyeD = M('#2a2826', { r: 0.4 });
-    this.eyes = [];
-    for (const sx of [-0.065, 0.065]) { const e = new THREE.Group(); e.position.set(sx, 0.02, 0.151); h.add(e); box(e, 0.035, 0.035, 0.01, eyeD, 0, 0, 0, 0.01, false); this.eyes.push(e); }
-    box(h, 0.05, 0.012, 0.01, M(L.hair, { r: 0.9 }), -0.065, 0.065, 0.151, 0, false); box(h, 0.05, 0.012, 0.01, M(L.hair, { r: 0.9 }), 0.065, 0.065, 0.151, 0, false);
-    this.mouth = box(h, 0.07, 0.012, 0.01, M('#7a4a40'), 0, -0.08, 0.151, 0, false);
-    const st = L.style;
-    if (st !== 'cap') box(h, 0.32, 0.09, 0.32, hair, 0, 0.17, -0.005, 0.04);
-    if (st === 'short') { box(h, 0.32, 0.22, 0.08, hair, 0, 0.05, -0.13, 0.03); }
-    if (st === 'long') { box(h, 0.34, 0.5, 0.09, hair, 0, -0.08, -0.13, 0.04); box(h, 0.05, 0.38, 0.22, hair, -0.16, -0.02, -0.03, 0.02); box(h, 0.05, 0.38, 0.22, hair, 0.16, -0.02, -0.03, 0.02); }
-    if (st === 'bun') { box(h, 0.32, 0.24, 0.08, hair, 0, 0.04, -0.13, 0.03); sph(h, 0.09, hair, 0, 0.24, -0.1, 10); }
-    if (st === 'curly') { for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) sph(h, 0.08, hair, -0.1 + i * 0.1, 0.19, -0.1 + j * 0.1, 7); box(h, 0.32, 0.2, 0.08, hair, 0, 0.04, -0.13, 0.03); }
-    if (st === 'cap') { box(h, 0.33, 0.1, 0.32, '#3f4a44', 0, 0.17, 0, 0.04); box(h, 0.26, 0.02, 0.13, '#3f4a44', 0, 0.13, 0.2, 0.005); box(h, 0.32, 0.14, 0.06, hair, 0, 0.03, -0.13, 0.02); }
-    if (L.acc === 'glasses') { const fr = M('#1f1f1f'); for (const sx of [-0.065, 0.065]) box(h, 0.08, 0.06, 0.01, M('#cfe0e6', { o: 0.35 }), sx, 0.02, 0.158, 0, false); box(h, 0.24, 0.012, 0.012, fr, 0, 0.05, 0.16, 0, false); }
-    if (L.acc === 'headphones') { const band = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.02, 8, 18, PI), M('#222')); band.position.set(0, 0.02, 0); h.add(band); for (const sx of [-0.17, 0.17]) cyl(h, 0.06, 0.06, 0.05, '#2a2a2a', sx, 0, 0, 14).rotation.z = PI / 2; }
-    if (L.acc === 'beret') { const b = cyl(h, 0.18, 0.17, 0.05, '#4a2e2a', 0.02, 0.22, -0.01, 16); b.rotation.z = -0.2; }
-    if (L.acc === 'tie') { box(g, 0.05, 0.36, 0.015, '#5a2a26', 0, hip + 0.42, 0.155, 0); box(g, 0.18, 0.05, 0.015, '#f1ede6', 0, hip + 0.63, 0.153, 0); }
-    g.traverse(o => { if (o.isMesh) o.castShadow = true; });
-    const hb = new THREE.Mesh(hitGeo, hitMat); hb.position.y = 1.1; hb.userData.agent = this; g.add(hb); hitboxes.push(hb);
+    const parts = buildCute(this.def, this.color);
+    g.add(parts.root);
+    Object.assign(this, { legL: parts.legL, legR: parts.legR, armL: parts.armL, armR: parts.armR, head: parts.head, eyes: parts.eyes, mouth: parts.mouth });
+    const hb = new THREE.Mesh(hitGeo, hitMat); hb.position.y = 0.9; hb.userData.agent = this; g.add(hb); hitboxes.push(hb);
   }
   buildLabel() {
     const el = document.createElement('div'); el.className = 'lbl';
@@ -127,7 +93,7 @@ export class Agent {
     this.el = el; this.elBubble = el.querySelector('.bubble'); this.elBT = el.querySelector('.bt');
     this.elBar = el.querySelector('.pbar'); this.elBarI = this.elBar.querySelector('i'); this.elDot = el.querySelector('.sdot');
     el.querySelector('.tag').addEventListener('pointerdown', e => { e.stopPropagation(); hooks.select(this, true); });
-    const obj = new CSS2DObject(el); obj.position.set(0, 2.35, 0); this.group.add(obj);
+    const obj = this.labelObj = new CSS2DObject(el); obj.position.set(0, 1.95, 0); this.group.add(obj);
   }
 
   /* --- asinxron primitivlər --- */
@@ -247,9 +213,9 @@ export class Agent {
       const tgt = Math.atan2(camera.position.x - this.pos.x, camera.position.z - this.pos.z);
       this.targetRot = this.rot + wrapA(tgt - this.rot) * 0.6;
     }
-    if (this.rig) { this.updateRig(dt, s, walking, sw, bob); if (this.flashT > 0) this.flashT -= dt; this.updateLabel(); return; }
     this.legL.rotation.x = lerp(sw, -1.45, s); this.legR.rotation.x = lerp(-sw, -1.45, s);
-    this.group.position.set(this.pos.x, this.sitDrop * s + bob, this.pos.z);
+    // yumru fiqurun ombası alçaqdır: oturacağa uyğunlaşdırırıq
+    this.group.position.set(this.pos.x, (this.sitDrop + 0.22) * s + bob, this.pos.z);
 
     let aL = 0, aR = 0, zL = -0.05, zR = 0.05, hx = 0, hy = Math.sin(this.t * 0.4 + this.seed) * 0.12, hz = 0;
     if (walking) { aL = -sw * 0.8; aR = sw * 0.8; }
@@ -275,30 +241,6 @@ export class Agent {
     this.head.rotation.x += (hx - this.head.rotation.x) * k; this.head.rotation.y += (hy - this.head.rotation.y) * k; this.head.rotation.z += (hz - this.head.rotation.z) * k;
     if (this.flashT > 0) this.flashT -= dt;
     this.updateLabel();
-  }
-  // Skeletli model: hər kadr sümük pozası. Dəyərlər hamar keçidlə (this.P) hədəfə yaxınlaşır.
-  updateRig(dt, s, walking, sw, bob) {
-    const t = this.t;
-    const T = { aL: 0.05, aR: 0.05, zL: 0, zR: 0, eL: -0.15, eR: -0.15, hx: 0, hy: Math.sin(t * 0.4 + this.seed) * 0.12, hz: 0, lean: 0 };
-    if (walking) { T.aL = -sw * 0.6; T.aR = sw * 0.6; T.eL = T.eR = -0.25; }
-    else switch (this.anim) {
-      case 'type': T.aL = T.aR = -0.55; T.eL = T.eR = -1.15; T.zL = T.zR = 0.05; T.eL += Math.sin(t * 16) * 0.05; T.eR += Math.sin(t * 16 + 2) * 0.05; T.hx = 0.12; T.hy *= 0.3; T.lean = 0.08; break;
-      case 'think': T.aR = -0.9; T.eR = -2.3; T.zR = 0.25; T.aL = -0.35; T.eL = -1.4; T.hz = 0.08; T.hx = -0.06; break;
-      case 'talk': T.aL = -0.3 + Math.sin(t * 3) * 0.25; T.eL = -0.9 + Math.sin(t * 2.4) * 0.3; T.aR = -0.4 + Math.sin(t * 3.7 + 1) * 0.3; T.eR = -1.0 + Math.sin(t * 2.9) * 0.3; T.hy = Math.sin(t * 1.5) * 0.18; break;
-      case 'present': T.aR = -1.3 + Math.sin(t * 1.8) * 0.25; T.eR = -0.4; T.zR = -0.3; T.aL = -0.2; break;
-      case 'drink': T.aR = -0.7 + Math.sin(t * 0.8) * 0.1; T.eR = -2.0; T.zR = 0.15; break;
-      case 'phone': T.aR = -0.5; T.eR = -2.1; T.zR = 0.3; T.aL = -0.4; T.eL = -1.3; T.hx = 0.3; T.hy = 0; break;
-    }
-    if (this.waveT > 0) { this.waveT -= dt; T.aR = -2.6; T.zR = -0.5; T.eR = -0.6 + Math.sin(t * 12) * 0.35; }
-    const P = (this.P ||= { ...T }), k = Math.min(1, dt * 10);
-    for (const key in T) P[key] += (T[key] - P[key]) * k;
-    applyPose(this.rig, {
-      legL: lerp(sw, -1.5, s), legR: lerp(-sw, -1.5, s),
-      kneeL: lerp(Math.max(0, sw) * 0.9, 1.5, s), kneeR: lerp(Math.max(0, -sw) * 0.9, 1.5, s),
-      ...P,
-    });
-    // oturanda omba oturacağa düşür (model hündür: köhnə fiqurdan bir az aşağı)
-    this.group.position.set(this.pos.x, (this.sitDrop - 0.12) * s + bob, this.pos.z);
   }
   progress() { if (this.liveProg != null) return this.liveProg; return this.progTimer ? clamp(1 - this.progTimer.t / this.progTimer.dur, 0, 1) : null; }
   updateLabel() {
@@ -328,5 +270,45 @@ export function sideSpot(b) {
 }
 
 for (const def of TEAM) AGENTS.push(new Agent(def, SEATS[def.id]));
+
+/* ---------------- heyət: kim ofisdədir ---------------- */
+export const ENTRY = { x: -6, z: 13.2 }; // giriş: cənub tərəfdə
+export const isHired = id => AGENTS.find(a => a.id === id)?.hired;
+function show(a, on) { a.group.visible = on; a.labelObj.visible = on; setDesk(a.id, on); }
+// ilk yükləmədə: animasiyasız
+export function initStaff(ids) {
+  for (const a of AGENTS) {
+    a.hired = ids.includes(a.id); show(a, a.hired);
+    if (!a.hired) { a.interrupt(); a.mode = 'away'; a.status = 'away'; a.task = ''; }
+  }
+}
+// serverdən gələn siyahı ilə tutuşdur (animasiyasız)
+export function syncStaff(ids) {
+  for (const a of AGENTS) {
+    const should = ids.includes(a.id);
+    if (should && !a.hired) { a.hired = true; show(a, true); a.pos.set(a.seat.x, 0, a.seat.z); a.sit = a.sitTarget = 1; a.startLife(); }
+    if (!should && a.hired) { a.hired = false; a.interrupt(); show(a, false); a.mode = 'away'; a.status = 'away'; a.task = ''; }
+  }
+}
+// işə götürüldü: girişdən içəri girir və masasına keçir
+export function arrive(a, back = false) {
+  if (a.hired) return;
+  a.hired = true; a.pos.set(ENTRY.x, 0, ENTRY.z); a.sit = 0; a.sitTarget = 0; show(a, true);
+  a.run(async () => {
+    a.say(back ? 'Yenidən buradayam' : 'Salam, bu gün ilk günümdür');
+    await a.goHome(); a.anim = 'idle'; a.flash(back ? 'Bu dəfə özümü göstərəcəm' : 'Masam buradır?', 3); await a.sleep(3);
+  }, 'free');
+}
+// işdən çıxarıldı: əşyalarını yığır və gedir
+export function leave(a) {
+  if (!a.hired) return;
+  a.hired = false;
+  a.run(async () => {
+    a.status = 'away'; a.anim = 'idle'; a.say('Əşyalarımı yığıram'); await a.sleep(3);
+    await a.walkTo(ENTRY.x, ENTRY.z); show(a, false); a.mode = 'away'; a.task = '';
+    await a.sleep(1e9);
+  }, 'away');
+  for (const o of AGENTS) if (o !== a && o.hired && o.mode === 'free' && Math.random() < 0.5) o.flash(['Ciddi?', 'Növbəti kim olacaq…', 'Yazıq oldu', 'Bunu gözləmirdim'][Math.floor(Math.random() * 4)], 3.5);
+}
 export const byId = id => AGENTS.find(a => a.id === id);
 export { DEPTS };

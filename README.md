@@ -82,6 +82,8 @@ npm run demo
 
 Testlər (Claude çağırılmır): `npm test`.
 
+İctimai versiya (dijital marketinq və reklam yerləşdirmə vəzifələri olmadan): `EDITION=public npm start`.
+
 Seçimlər (mühit dəyişənləri):
 
 | Dəyişən | Standart | Nə edir |

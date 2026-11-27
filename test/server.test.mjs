@@ -7,15 +7,15 @@ import { mkdtemp, readFile, readdir, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PIPE } from '../public/team.js';
+import { PIPE, START_STAFF, PUBLIC_EXCLUDED } from '../public/team.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-function startServer(outDir, delay = 0) {
+function startServer(outDir, delay = 0, extra = {}) {
   return new Promise((resolve, reject) => {
     const p = spawn(process.execPath, ['server.mjs'], {
       cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, MOCK: '1', PORT: '0', OUT_DIR: outDir, MEMORY_DIR: path.join(outDir, 'yaddas'), PC_DIR: path.join(outDir, 'pc'), MOCK_DELAY: String(delay) },
+      env: { ...process.env, MOCK: '1', PORT: '0', OUT_DIR: outDir, MEMORY_DIR: path.join(outDir, 'yaddas'), PC_DIR: path.join(outDir, 'pc'), MOCK_DELAY: String(delay), ...extra },
     });
     let out = '';
     const t = setTimeout(() => { p.kill(); reject(new Error('server başlamadı: ' + out)); }, 15000);
@@ -94,7 +94,10 @@ test('kampaniya sona qədər gedir, vəziyyət diskdə saxlanılır', async () =
     const [sub] = await readdir(path.join(dir, 'kampaniyalar'));
     const files = await readdir(path.join(dir, 'kampaniyalar', sub));
     assert.ok(files.includes('00-tam-kampaniya.md') && files.includes('state.json'));
-    assert.equal(files.filter(f => /^\d\d-/.test(f)).length, PIPE.length + 1); // 13 addım + 00-tam
+    // yalnız işçisi olan addımların faylı yazılır, qalanları keçilir
+    const working = PIPE.filter(p => START_STAFF.includes(p.id)).length;
+    assert.equal(files.filter(f => /^\d\d-/.test(f)).length, working + 1);
+    assert.equal(c.steps.filter(x => x.file).length, working);
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });
 
@@ -143,6 +146,7 @@ test('kompüter: tapşırıq personajın qovluğunda fayl yaradır, monitor jurn
   try {
     const events = [];
     const done = waitEvent(s.base, ev => { if (ev.type === 'pc') events.push(ev); return ev.type === 'job' && ev.phase === 'done'; });
+    await post(s.base, '/api/staff/hire', { id: 'analyst' });
     await post(s.base, '/api/task', { agentId: 'analyst', text: 'Aylıq ROMI hesabatı' });
     await done;
     assert.ok(events.some(e => e.agentId === 'analyst' && e.kind === 'cmd'), 'terminal əmri jurnala düşür');
@@ -164,5 +168,44 @@ test('kompüter: tapşırıq personajın qovluğunda fayl yaradır, monitor jurn
       assert.equal((await fetch(s.base + `/api/pc/file?id=analyst&f=${encodeURIComponent(f)}`)).status, 404, f);
     }
     assert.equal((await fetch(s.base + '/api/pc?id=yoxdur')).status, 404);
+  } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('heyət: kiçik başlayır, işə götürmək və çıxarmaq; işləməyənə tapşırıq verilmir', async () => {
+  const dir = await tmp(); const s = await startServer(dir);
+  try {
+    let st = await fetch(s.base + '/api/staff').then(r => r.json());
+    assert.equal(st.edition, 'private');
+    assert.deepEqual(st.hired, START_STAFF);
+    assert.ok(st.candidates.includes('analyst') && st.candidates.includes('target'));
+    assert.equal((await post(s.base, '/api/task', { agentId: 'analyst', text: 'ROMI' })).status, 409, 'işə götürülməyənə tapşırıq olmaz');
+    assert.equal((await post(s.base, '/api/chat', { agentId: 'analyst', message: 'salam' })).status, 409);
+
+    assert.equal((await post(s.base, '/api/staff/hire', { id: 'analyst' })).status, 200);
+    assert.equal((await post(s.base, '/api/staff/hire', { id: 'analyst' })).status, 409);
+    assert.equal((await post(s.base, '/api/task', { agentId: 'analyst', text: 'ROMI' })).status, 200);
+
+    assert.equal((await post(s.base, '/api/staff/fire', { id: 'cmo' })).status, 409, 'direktoru çıxarmaq olmaz');
+    st = await post(s.base, '/api/staff/fire', { id: 'copy' }).then(r => r.json());
+    assert.ok(!st.hired.includes('copy') && st.candidates.includes('copy'));
+    assert.equal(st.left.at(-1).id, 'copy');
+  } finally { await s.stop(); }
+  // vəziyyət diskdə qalır
+  const s2 = await startServer(dir);
+  try {
+    const st = await fetch(s2.base + '/api/staff').then(r => r.json());
+    assert.ok(st.hired.includes('analyst') && !st.hired.includes('copy'));
+  } finally { await s2.stop(); await rm(dir, { recursive: true, force: true }); }
+});
+
+test('ictimai versiya: dijital marketoloq və reklam verənlər heç cür işə götürülmür', async () => {
+  const dir = await tmp(); const s = await startServer(dir, 0, { EDITION: 'public' });
+  try {
+    const st = await fetch(s.base + '/api/staff').then(r => r.json());
+    assert.equal(st.edition, 'public');
+    for (const id of PUBLIC_EXCLUDED) {
+      assert.ok(!st.candidates.includes(id), id + ' namizəd siyahısında olmamalıdır');
+      assert.equal((await post(s.base, '/api/staff/hire', { id })).status, 403, id);
+    }
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });
