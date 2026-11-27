@@ -73,6 +73,11 @@ test('tapşırıq SSE ilə bitir və nəticə faylı yazılır', async () => {
     const ev = await done;
     const md = await fetch(s.base + '/api/output?f=' + encodeURIComponent(ev.file)).then(r => r.text());
     assert.match(md, /Yeni il üçün slogan/);
+    // yenidən qoşulan brauzer buraxdığı "done"-u snapshot-dan bərpa edə bilir
+    const hello = await waitEvent(s.base, ev => ev.type === 'hello');
+    const j = hello.jobs.find(x => x.jobId === ev.jobId);
+    assert.equal(j?.status, 'done');
+    assert.equal(j.file, ev.file);
   } finally { await s.stop(); await rm(dir, { recursive: true, force: true }); }
 });
 

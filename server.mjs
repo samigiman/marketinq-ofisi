@@ -240,7 +240,7 @@ async function runTask(agentId, text) {
       if (claudeState.mode === 'live') memory.remember(agentId, `Rəhbər mənə tapşırıq verdi: "${text}". Hazırladım: ${job.output.replace(/[#*_]/g, '').slice(0, 260)}`, 'is');
       emit({ type: 'job', phase: 'done', jobId: job.id, agentId, text, output: job.output, file: job.file });
     } catch (e) {
-      job.status = 'error';
+      job.status = 'error'; job.error = e.message;
       emit({ type: 'job', phase: 'error', jobId: job.id, agentId, text, error: e.message });
     }
   })();
@@ -356,7 +356,9 @@ function resumeCampaign(id) {
 // Yeni qoşulan (və ya səhifəni yeniləyən) brauzer üçün indiki vəziyyət.
 const snapshot = () => ({
   campaign: runningCampaign() ? campSummary(runningCampaign()) : null,
-  jobs: [...jobs.values()].filter(j => j.status === 'running').map(j => ({ jobId: j.id, agentId: j.agentId, text: j.text })),
+  // gedən işlər + son bitənlər: qoşulma kəsiləndə buraxılmış "done" hadisəsini brauzer buradan bərpa edir
+  jobs: [...jobs.values()].filter((j, i, all) => j.status === 'running' || i >= all.length - 30)
+    .map(j => ({ jobId: j.id, agentId: j.agentId, text: j.text, status: j.status, file: j.file, error: j.error || null })),
 });
 
 /* ---------------- HTTP ---------------- */
