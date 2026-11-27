@@ -61,7 +61,7 @@ Animation, walking, idle chatter and meetings **never** call a model. Tokens are
 
 1. The browser renders the office. Everyday life (work, breaks, small talk, meetings) runs entirely client-side.
 2. When you talk, the server builds the character's system prompt: the character's biography, opinions, way of speaking, relationships, the agency's history, colleagues, current activity, and memories recalled from Ruflo.
-3. `claude -p` runs with **no tools**, and the reply streams back into the speech bubble.
+3. In chat, `claude -p` runs with **no tools** and the reply streams into the speech bubble. For tasks, the character works on their own computer (a sandboxed folder) with files and a terminal; every command and file shows up in the monitor log.
 4. After a chat or a task, a short memory is written to Ruflo.
 5. In a campaign, each step's output is added to the next agent's prompt; the browser animates the hand-off.
 
@@ -75,8 +75,10 @@ Memories live in [Ruflo](https://github.com/ruvnet/ruflo)'s AgentDB (vector sear
 
 ## Security
 
-- Agents run with `claude -p --tools ""`: no file access, no shell, no web, no ad accounts. Text only.
-- No user hooks, plugins or MCP servers are loaded. The working directory is empty.
+- **Chat** has no tools (`claude -p --tools ""`).
+- **Tasks and campaigns** run on the character's own computer: `/Users/Shared/marketinq-ofisi/kompyuterler/<id>/` (macOS; set `PC_DIR` to change). The Claude sandbox (`--restricted` + `sandbox`) allows writing only in that folder, blocks reading the whole home folder (project files, `~/.ssh`, keys), other characters' folders and the log, and blocks the network.
+- **Codex** characters (`engine: 'codex'`) use Codex only with `CODEX=1`. Codex's sandbox limits writes to the folder but **not reads**, so by default they run on Claude too.
+- No user hooks, plugins or MCP servers are loaded.
 - The server listens on `127.0.0.1` only.
 - `outputs/` and `yaddas/` are git-ignored.
 

@@ -130,7 +130,7 @@ Animasiya, gəzmək, söhbət balonları və görüşlər **heç vaxt** model ç
 
 1. Brauzer ofisi çəkir. Gündəlik həyat (iş, fasilə, söhbətlər, görüşlər) tamamilə brauzerdədir.
 2. Siz danışanda server personajın **sistem promptunu** qurur: personajın bioqrafiyası, fikirləri, danışıq tərzi, münasibətləri, agentliyin tarixçəsi, həmkarlar, indi nə etdiyi və Ruflo-dan gələn xatirələr.
-3. `claude -p` alətsiz işə salınır, cavab axınla (stream) brauzerə gəlir və nitq balonunda görünür.
+3. Söhbətdə `claude -p` alətsiz işə salınır, cavab axınla (stream) brauzerə gəlir və nitq balonunda görünür. Tapşırıqda isə personaj öz kompüterində (sandbox qovluğu) fayl və terminalla işləyir; hər əmr və fayl monitor jurnalına düşür.
 4. Söhbətdən və ya işdən sonra qısa xatirə Ruflo-ya yazılır.
 5. Kampaniyada hər addımın nəticəsi növbəti agentin promptuna əlavə olunur; brauzer personajların bir-birinə işi "təhvil verməsini" animasiya edir.
 
@@ -151,9 +151,13 @@ Personajların xatirələri [Ruflo](https://github.com/ruvnet/ruflo)-nun yaddaş
 
 ## Təhlükəsizlik
 
-- Agentlər `claude -p --tools ""` ilə **alətsiz** işləyir: fayl oxuya, əmr işlədə, internetə və ya reklam kabinetinə girə bilməzlər.
+- **Söhbət** alətsizdir (`claude -p --tools ""`).
+- **Tapşırıq və kampaniya** personajın öz kompüterində gedir: `/Users/Shared/marketinq-ofisi/kompyuterler/<id>/` (macOS; dəyişmək üçün `PC_DIR`). Orada fayl yaradır, oxuyur və əmr işlədir. Claude sandbox-u (`--restricted` + `sandbox`) bunları bağlayır:
+  - yazmaq yalnız öz qovluğunda;
+  - bütün ev qovluğu (layihə faylları, `~/.ssh`, açarlar), qonşu personajların qovluqları və jurnal oxumağa bağlıdır;
+  - internet bağlıdır.
+- **Codex** personajları (`engine: 'codex'`) yalnız `CODEX=1` ilə Codex-də işləyir. Codex sandbox-u yazmağı qovluqla məhdudlaşdırır, amma **oxumağı yox**: ev qovluğunu görə bilər. Ona görə default olaraq onlar da Claude ilə işləyir.
 - İstifadəçi hook-ları, plugin-lər və MCP serverləri yüklənmir (`--setting-sources ""`, `--strict-mcp-config`).
-- İşçi qovluq boşdur (`.agent-workdir/`), layihə fayllarını görmürlər.
 - Server yalnız `127.0.0.1` ünvanında dinləyir.
 - `outputs/` və `yaddas/` git-ə düşmür (`.gitignore`).
 

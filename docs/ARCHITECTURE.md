@@ -73,3 +73,17 @@ claude -p "<prompt>" --output-format stream-json --verbose --include-partial-mes
 
 `npm test` serveri demo rejimdə (`MOCK=1`, `MOCK_DELAY=0`, müvəqqəti `OUT_DIR`) işə salır və API-ni yoxlayır: tapşırıq, tam kampaniya, server dayananda davam etdirmə. Claude çağırılmır.
 - `yaddas/<agent>.jsonl`, `yaddas/ofis.db` (Ruflo)
+
+## Kompüterlər (`pc.mjs`)
+
+Hər personajın iş qovluğu: `PC_DIR` (default macOS-da `/Users/Shared/marketinq-ofisi/kompyuterler`), içində `<id>/isler/`. Qovluq ev qovluğundan kənardadır, çünki sandbox bütün ev qovluğunu oxumağa bağlayır.
+
+- **Claude:** `claude -p --restricted --tools Read,Write,Edit,Bash,Glob,Grep --settings <sandbox> --permission-mode acceptEdits`, işçi qovluq personajın qovluğudur. `sandbox.filesystem.denyRead`: `~/`, layihə qovluğu, qonşuların qovluqları, `.jurnal/`. Yazmaq yalnız öz qovluğunda, internet bağlı.
+- **Codex:** `codex exec --json -C <qovluq> -s workspace-write -c mcp_servers={}`. Yalnız `CODEX=1` ilə (model: `CODEX_MODEL`). Oxumağı məhdudlaşdırmır. Uğursuz olsa iş Claude ilə təkrarlanır.
+- **Demo rejim:** model çağırılmır, amma qovluqda real fayl yaranır və jurnal yazılır.
+- **Jurnal:** hər alət çağırışı `{type:'pc', agentId, kind: cmd|out|err|file|note, text}` SSE hadisəsidir; son 200 sətir yaddaşda, hamısı `PC_DIR/.jurnal/<id>.jsonl`-də.
+
+| Endpoint | Nə edir |
+|---|---|
+| `GET /api/pc?id=` | engine, hansı alətlə işlədiyi, məşğuldurmu, fayl ağacı, jurnal |
+| `GET /api/pc/file?id=&f=` | faylın mətni (≤256 KB, yalnız mətn; `../`, mütləq yol və simlink ilə qovluqdan çıxmaq olmur) |
